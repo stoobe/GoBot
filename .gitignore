@@ -3,3 +3,4 @@ client_secrets.json
 gobot.db
 config.py
 GoBot Server KeyName.pem
+.DS_Store
