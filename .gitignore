@@ -4,3 +4,4 @@ gobot.db
 config.py
 GoBot Server KeyName.pem
 .DS_Store
+old_go_bot
