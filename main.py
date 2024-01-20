@@ -1,4 +1,5 @@
 import GoCog
+import config
 
 import discord
 from discord import app_commands
@@ -7,13 +8,10 @@ from discord.ext import commands
 import asyncio
 import sqlite3
 import datetime
-import recordclass
+# import recordclass
+import attrs
 
-MY_GUILD = discord.Object(id=866182182984613898)
-DISCORD_TOKEN = 'MTE4Nzk5ODQ1NzE0Nzk1MzE1Mg.G-bB7O.l_1_ZeuQH2jAWSrcv6t4kVtzZnr8y4LSyn_CBQ'
-
-
-
+MY_GUILD = discord.Object(id=config.guild_id)
 
 def adapt_date_iso(val):
     """Adapt datetime.date to ISO 8601 date."""
@@ -26,16 +24,24 @@ def convert_date(val):
 sqlite3.register_adapter(datetime.date, adapt_date_iso)
 sqlite3.register_converter("date", convert_date)
 
-def recordclass_factory(cursor, row):
-    fields = [column[0] for column in cursor.description]
-    Row = recordclass.make_dataclass("Row", fields)
-    r = Row(*row)
-    #print(f"r {r}")
-    return r
+# def recordclass_factory(cursor, row):
+#     fields = [column[0] for column in cursor.description]
+#     Row = recordclass.make_dataclass("Row", fields)
+#     r = Row(*row)
+#     #print(f"r {r}")
+#     return r
 
+def attrs_factory(cursor, row):
+    fields = [column[0] for column in cursor.description]
+    Row = attrs.make_class("Row", fields)
+    r = Row(*row)
+    print(f"attrs_factory row {r}")
+    return r
+    
 con = sqlite3.connect("gobot.db")
 # con.row_factory = sqlite3.Row
-con.row_factory = recordclass_factory
+# con.row_factory = recordclass_factory
+con.row_factory = attrs_factory
 cur = con.cursor()
 
 
@@ -90,7 +96,7 @@ print("33333")
 async def main():
     async with bot:
         await bot.load_extension("GoCog")
-        await bot.start(DISCORD_TOKEN)
+        await bot.start(config.bot_token)
 
 asyncio.run(main())
 
