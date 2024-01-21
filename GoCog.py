@@ -8,17 +8,28 @@ def discord_name(member: discord.Member):
     return member.nick or member.global_name or member.display_name or member.name
 
 class GoDb:
-    """
-    cur.execute("CREATE TABLE teams(team_id INTEGER PRIMARY KEY, team_name UNIQUE, player_count)")
-    cur.execute("CREATE TABLE players(discord_id, discord_name, pfid, ign)")
-    cur.execute("CREATE TABLE rosters(team_id, discord_id)")
-    cur.execute("CREATE TABLE signups(date, team_id)")
-    cur.execute("CREATE TABLE ratings(pfid UNIQUE, ign, go_rating)")
-    """
+
+    def create_tables_if_needed(self):
+
+        res = self.cur.execute("SELECT name FROM sqlite_master")
+        tables = [row.name for row in res.fetchall()]
+
+        if "teams" not in tables:
+            print("creating sqlite3 tables...")
+            self.cur.execute("CREATE TABLE teams(team_id INTEGER PRIMARY KEY, team_name UNIQUE, player_count)")
+            self.cur.execute("CREATE TABLE players(discord_id, discord_name, pfid, ign)")
+            self.cur.execute("CREATE TABLE rosters(team_id, discord_id)")
+            self.cur.execute("CREATE TABLE signups(date, team_id)")
+            self.cur.execute("CREATE TABLE ratings(pfid UNIQUE, ign, go_rating)")
+            print("creating sqlite3 tables complete")
+        else:
+            print("sqlite3 tables already exist")
+
+
 
     def __init__(self, cur):
         self.cur = cur
-
+        self.create_tables_if_needed()
 
     def get_player_signups(self, discord_id:int, date:datetime.date=None):
         
@@ -272,7 +283,7 @@ class GoCog(commands.Cog):
         await interaction.response.send_message(f'Signed up "{team_name}" on {date} with players: {", ".join(roster)}. \nThis is signup #{n} for the team.')
 
 
-    @group.command( # we use the declared group to make a command.
+    @group.command( 
         description="Cancel a signup for a day"
         )
     async def cancel(self, interaction: discord.Interaction):
