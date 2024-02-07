@@ -5,6 +5,8 @@ import sqlite3
 import datetime
 
 def discord_name(member: discord.Member):
+    if member is None:
+        return ""
     return member.nick or member.global_name or member.display_name or member.name
 
 class GoDb:
@@ -30,6 +32,41 @@ class GoDb:
     def __init__(self, cur):
         self.cur = cur
         self.create_tables_if_needed()
+
+
+    def get_team_for_players(self, player_ids):
+        team_id_sets = []
+        for player_id in player_ids:
+            team_id_sets.append(self.get_team_ids_for_player(discord_id=player_id))
+
+        team_ids_all_this_size = set()
+        self.cur.execute("SELECT team_id FROM teams WHERE player_count=?", (len(player_ids),))
+        for row in self.cur.fetchall():
+            team_ids_all_this_size.add(row.team_id)
+        print(f"team_ids_all_this_size len={len(team_ids_all_this_size)} {team_ids_all_this_size}")
+        
+        result = team_ids_all_this_size
+        for team_ids in team_id_sets:
+            result.intersection_update(team_ids)
+            print(f"result {result}")
+        
+        if len(result) == 0:
+            return None
+        
+        return result.pop()
+        
+
+    def get_team_ids_for_player(self, discord_id:int):
+        query = "SELECT team_id FROM rosters WHERE discord_id=?"   
+        self.cur.execute(query, (discord_id,))
+
+        rows = self.cur.fetchall()
+        team_ids = set()
+        for row in rows:
+            team_ids.add(row.team_id)
+        print(f"get_team_ids_for_player({discord_id})--> {team_ids}")
+        return team_ids
+            
 
     def get_player_signups(self, discord_id:int, date:datetime.date=None):
         
@@ -62,6 +99,7 @@ class GoDb:
             result = result.team_id
         print(f"get_team_id({team_name}) = {result}")
         return result
+    
 
     def get_team_name(self, team_id:int):
         self.cur.execute("SELECT * FROM teams WHERE team_id=?", (team_id,))
@@ -72,6 +110,7 @@ class GoDb:
             result = result.team_name
         print(f"get_team_name({team_id}) = {result}")
         return result
+    
 
     def get_max_team_id(self):
         self.cur.execute("SELECT max(team_id) as team_id FROM teams")
@@ -162,6 +201,15 @@ class GoCog(commands.Cog):
     #   """ /top-command """
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
+    def set_ign_insert(self, player, ign):
+        print(f"set_ign_insert {player} {ign}")
+        if ign is None:
+            ign = discord_name(player)
+        if(self.godb.get_player_count(player.id, ign)>0):
+            print(f"ERROR: ign already set for {player}")
+        self.cur.execute("INSERT INTO players VALUES (?,?,?,?)", (player.id,
+            discord_name(player), 0, ign))
+        self.cur.connection.commit()
 
     @group.command( # we use the declared group to make a command.
         description="Set your In Game Name"
@@ -172,9 +220,10 @@ class GoCog(commands.Cog):
         if(self.godb.get_player_count(interaction.user.id, ign)>0):
             await interaction.response.send_message(f'ign for {discord_name(interaction.user)} already set to = {ign}') 
         else:
-            self.cur.execute("INSERT INTO players VALUES (?,?,?,?)", (interaction.user.id,
-                discord_name(interaction.user), 0, ign))
-            self.cur.connection.commit()
+            self.set_ign_insert(interaction.user, ign)
+            # self.cur.execute("INSERT INTO players VALUES (?,?,?,?)", (interaction.user.id,
+            #     discord_name(interaction.user), 0, ign))
+            # self.cur.connection.commit()
 
         await interaction.response.send_message(f'IGN set to "{ign}"') 
 
@@ -188,7 +237,9 @@ class GoCog(commands.Cog):
                      player2: discord.Member = None, 
                      player3: discord.Member = None):
 
-        print(f"\nsignup({team_name}, {player1}, {player2}, {player3})")
+        print("")
+        print(f"GoCog.signup names ({interaction.channel}, {team_name}, {discord_name(player1)}, {player2 and discord_name(player2)}, {player3 and discord_name(player3)})")
+        print(f"GoCog.signup ids   ({interaction.channel_id}, {team_name}, {player1.id}, {player2 and player2.id}, {player3 and player3.id})")
 
         date = datetime.date.today()
 
@@ -198,16 +249,19 @@ class GoCog(commands.Cog):
         if player3: discord_ids.add(player3.id)
 
         if not self.godb.is_player_ign_set(player1.id):
-            await interaction.response.send_message(f'Signup failed. Player {discord_name(player1)} needs run `/go set_ign`.')
-            return
+            self.set_ign_insert(player1, None)
+            # await interaction.response.send_message(f'Signup failed. Player {discord_name(player1)} needs run `/go set_ign`.')
+            # return
         
         if (player2 is not None) and not self.godb.is_player_ign_set(player2.id):
-            await interaction.response.send_message(f'Signup failed. Player {discord_name(player2)} needs run `/go set_ign`.')
-            return
+            self.set_ign_insert(player2, None)
+            # await interaction.response.send_message(f'Signup failed. Player {discord_name(player2)} needs run `/go set_ign`.')
+            # return
         
         if (player3 is not None) and not self.godb.is_player_ign_set(player3.id):
-            await interaction.response.send_message(f'Signup failed. Player {discord_name(player3)} needs run `/go set_ign`.')
-            return
+            self.set_ign_insert(player3, None)
+            # await interaction.response.send_message(f'Signup failed. Player {discord_name(player3)} needs run `/go set_ign`.')
+            # return
         
         if player3 and not player2:
             await interaction.response.send_message(f'Signup failed. Player3 included but Player2 was not.')
@@ -224,7 +278,7 @@ class GoCog(commands.Cog):
 
         team_id = self.godb.get_team_id(team_name=team_name)
 
-        # if it's an existing team
+        # if it's an existing team name
         if team_id is not None:
 
             discord_ids_db = self.godb.get_roster(team_id=team_id)
@@ -248,6 +302,16 @@ class GoCog(commands.Cog):
             if len(signup_dates) >= 4:
                 await interaction.response.send_message(f'Signup failed. Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).')
                 return
+        
+        else:
+            #if it's a new team name, make sure the roster doesn't have some other name
+            team_id = self.godb.get_team_for_players(player_ids=discord_ids)
+            if team_id is not None:
+                other_team_name = self.godb.get_team_name(team_id=team_id)
+                await interaction.response.send_message(f'Signup failed. The players are already on a team named "{other_team_name}".')
+                return
+
+
         
         # check that the players aren't on a different team today
         for player in [player1, player2, player3]:
@@ -287,7 +351,38 @@ class GoCog(commands.Cog):
         description="Cancel a signup for a day"
         )
     async def cancel(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f'cancelling your signup')         
+
+        player = interaction.user        
+
+        print("")
+        print(f"GoCog.cancel names ({interaction.channel}, {discord_name(player)})")
+        print(f"GoCog.cancel ids   ({interaction.channel_id}, {player.id})")
+
+        date = datetime.date.today()
+    
+        rows = self.godb.get_player_signups(discord_id=player.id, date=date)
+        if len(rows) == 0:
+            await interaction.response.send_message(f'Cancel failed. Player {discord_name(player)} is not signed up on {date}.')
+            return
+
+        msg = ""
+        for row in rows:
+            print(f"cancel row {row}")
+            self.cur.execute("DELETE FROM signups WHERE team_id=? and date=?", (row.team_id, row.date))
+
+            # remove team roster & name if they have no more signups
+            team_dates = self.godb.get_signup_dates(team_id=row.team_id)
+            if len(team_dates) == 0:
+                print(f"Deleting team {row.team_name} from teams table.")
+                self.cur.execute("DELETE FROM teams WHERE team_id=?", (row.team_id,))   
+                print(f"Deleting team {row.team_name} from roster table.")
+                self.cur.execute("DELETE FROM rosters WHERE team_id=?", (row.team_id,))   
+
+            self.cur.connection.commit()
+            if msg: msg += "\n"
+            msg += f'Cancelled your signup for team "{row.team_name}" on {row.date}'
+
+        await interaction.response.send_message(msg)     
 
 
 async def setup(bot: commands.Bot) -> None:

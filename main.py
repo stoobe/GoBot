@@ -1,4 +1,4 @@
-import GoCog
+import gobot.GoCog as GoCog
 import config
 
 import discord
@@ -47,9 +47,19 @@ class MyBot(commands.Bot):
     # By doing so, we don't have to wait up to an hour until they are shown to the end-user.
     async def setup_hook(self):
         # This copies the global commands over to your guild.
-        print("setup hook)")
+        print("setup_hook start")
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
+        
+        # self.tree.clear_commands(guild=self.get_guild(config.guild_id))
+        # self.tree.copy_global_to(guild=MY_GUILD)
+        # await self.tree.sync(guild=MY_GUILD)
+
+        # print(f"remove say {self.remove_command('say')}")
+        # print(f"remove say {self.remove_command('what')}")
+        # await self.tree.sync(guild=MY_GUILD)
+
+        print("setup_hook end")
         
 
 intents = discord.Intents.all()
