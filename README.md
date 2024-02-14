@@ -1,5 +1,9 @@
 # GoBot
 
+pipreqs .
+
+pip install -r requirements.txt
+
 
 ## AWS EC2 Setup
 * Amazon Linux

@@ -1,0 +1,7 @@
+asposestorage==1.0.2
+attrs==21.4.0
+discord.py==2.3.2
+python_dateutil==2.8.2
+recordclass==0.21.1
+Requests==2.31.0
+sqlmodel==0.0.14
