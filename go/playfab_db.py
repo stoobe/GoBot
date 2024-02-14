@@ -21,7 +21,7 @@ class PlayfabDB:
 
 
     def create_player(self, player: PfPlayer, session: Session) -> None:
-        logger.info("Creating Player in DB")
+        logger.info("Creating PfPlayer in DB")
         session.add(player)
 
         ign_hist = player.ign_history
@@ -46,14 +46,14 @@ class PlayfabDB:
 
 
     def read_player(self, pf_player_id: int, session: Session) -> PfPlayer:
-        logger.info(f"Reading Player with Playfab ID {pf_player_id} from DB")
+        logger.info(f"Reading PfPlayer with Playfab ID {pf_player_id} from DB")
         statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
         result: PfPlayer = session.exec(statement).first()
         if result:
             return result
         else:
-            logger.error("Player not found")
-            raise PlayerNotFoundError(f"Player with ID {pf_player_id} not found")
+            logger.error("PfPlayer not found")
+            raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
 
 
     def player_count(self, session):
@@ -70,7 +70,7 @@ class PlayfabDB:
         avatar_url: str = None,
     ) -> None:
 
-        logger.info(f"Updating Player with ID {pf_player_id} in DB")
+        logger.info(f"Updating PfPlayer with ID {pf_player_id} in DB")
 
         # Get the player, can throw PlayerNotFoundError
         player = self.read_player(pf_player_id=pf_player_id, session=session)
@@ -90,49 +90,37 @@ class PlayfabDB:
             self.check_update_ign_history(player=player, session=session)
 
         session.commit()
-        logger.info(f"Updated Player with ID {pf_player_id} in DB")
+        logger.info(f"Updated PfPlayer with ID {pf_player_id} in DB")
 
 
     def delete_player(self, session: Session, pf_player_id: int) -> None:
-        logger.info(f"Deleting Player with ID {pf_player_id} from DB")
+        logger.info(f"Deleting PfPlayer with ID {pf_player_id} from DB")
 
         # Get the player, can throw PlayerNotFoundError
         player = self.read_player(pf_player_id=pf_player_id, session=session)
-
-        # dont need to run this b/c we're using cascading deletes in the DB
-        # statement = delete(CareerStats).where(CareerStats.player_id == player_id)
-        # session.exec(statement)
 
         session.delete(player)
         session.commit()
 
         # Confirm the deletion
-        statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
-        results_post_delete = session.exec(statement)
-        player_post_delete = results_post_delete.first()
-
-        if player_post_delete is None:
-            logger.info(f"Player with ID {pf_player_id} was confirmed deleted")
+        if not self.player_exists(pf_player_id=pf_player_id, session=session):
+            logger.info(f"PfPlayer with {pf_player_id = } was confirmed deleted")
         else:
-            raise DataNotDeletedError(f"Player with ID {pf_player_id} was not deleted")
+            raise DataNotDeletedError(f"PfPlayer with {pf_player_id = } was not deleted")
         
         
     def delete_all_players(self, session: Session) -> None:
-        logger.info("Deleting all Players from DB")
+        logger.info("Deleting all PfPlayers from DB")
 
         statement = delete(PfPlayer)
         session.exec(statement)
 
         # Confirm the deletion
-        statement = select(PfPlayer)
-        results_post_delete = session.exec(statement)
-        players_post_delete = results_post_delete.all()
-
-        if players_post_delete == []:
-            logger.info("All Players were confirmed deleted")
+        if self.player_count(session=session) == 0:
+            logger.info("All PfPlayers were confirmed deleted")
         else:
-            logger.error("All Players were not deleted")
-            raise DataNotDeletedError("All Players were not deleted")
+            logger.error("All PfPlayers were not deleted")
+            raise DataNotDeletedError("All PfPlayers were not deleted")
         
         
     def add_career_stats(self, stats: PfCareerStats, session: Session) -> None:

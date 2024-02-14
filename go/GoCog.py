@@ -9,7 +9,7 @@ def discord_name(member: discord.Member):
         return ""
     return member.nick or member.global_name or member.display_name or member.name
 
-class GoDb:
+class GoDbOld:
 
     def create_tables_if_needed(self):
 
@@ -189,7 +189,7 @@ class GoCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
        self.bot = bot
        self.cur = bot.cur #db cursor
-       self.godb = GoDb(self.cur)    
+       self.godb = GoDbOld(self.cur)    
 
     group = app_commands.Group(name="go", description="...")
     # Above, we declare a command Group, in discord terms this is a parent command

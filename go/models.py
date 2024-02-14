@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 
 from sqlmodel import Field, Relationship, SQLModel, create_engine
@@ -7,17 +7,23 @@ from sqlmodel import Field, Relationship, SQLModel, create_engine
 class GoPlayer(SQLModel, table=True):
     __tablename__ = "go_player"
     
-    discord_id: int = Field(primary_key=True)
+    discord_id: int = Field(primary_key=True, unique=True)
     discord_name: str
     pf_player_id: Optional[int] = Field(default=None, foreign_key="pf_player.id")
-    
+    created_at: datetime = Field(default=datetime.now())
+
+    rosters : List["GoRoster"] = Relationship(back_populates="player", sa_relationship_kwargs={"cascade": "delete"}, )
+
 
 class GoTeam(SQLModel, table=True):
     __tablename__ = "go_team"
     
     id: Optional[int] = Field(default=None, primary_key=True)
     team_name: str = Field(unique=True)
-    player_count: int
+    team_size: int
+
+    rosters : List["GoRoster"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"}, )
+    signups : List["GoSignup"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"}, )
     
     
 class GoRoster(SQLModel, table=True):
@@ -25,13 +31,19 @@ class GoRoster(SQLModel, table=True):
     
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
     discord_id: int = Field(primary_key=True, foreign_key="go_player.discord_id")
+    
+    player: GoPlayer = Relationship(back_populates="rosters")
+    team: GoTeam = Relationship(back_populates="rosters")
 
 
-class GoSignups(SQLModel, table=True):
-    __tablename__ = "go_signups"
+
+class GoSignup(SQLModel, table=True):
+    __tablename__ = "go_signup"
     
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
-    date: datetime = Field(primary_key=True)
+    session_date: date = Field(primary_key=True)
+
+    team: GoTeam = Relationship(back_populates="signups")
 
 
 class GoRatings(SQLModel, table=True):
