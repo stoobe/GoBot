@@ -171,3 +171,4 @@ cython_debug/
 *.out
 *.out.?
 *.db
+.vscode/settings.json

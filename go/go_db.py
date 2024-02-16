@@ -1,6 +1,8 @@
 import os
-from typing import List
+from typing import List, Set
 from datetime import datetime, timezone
+from datetime import date as datetype
+from pydantic import BaseModel
 from sqlmodel import SQLModel, Session, delete, func, select
 
 from go.exceptions import DataNotDeletedError, GoDbError, PlayerNotFoundError
@@ -14,6 +16,11 @@ from go.models import GoPlayer, GoRoster, GoSignup, GoTeam
 logger = create_logger()
 
 
+class GoTeamPlayer(BaseModel):
+    team: GoTeam
+    player: GoPlayer
+    
+
 class GoDB:
     
 
@@ -24,19 +31,6 @@ class GoDB:
     def create_player(self, go_player: GoPlayer, session: Session) -> None:
         logger.info("Creating GoPlayer in DB")
         session.add(go_player)
-
-        # ign_hist = go_player.ign_history
-        # ign_hist.sort(key=lambda x: x.date)
-        # most_recent_ign = ign_hist and ign_hist[-1].ign or None
-        
-        # if most_recent_ign != go_player.ign:
-        #     ign_row = PfIgnHistory(
-        #         discord_id=go_player.discord_id,
-        #         date=datetime.now(),
-        #         ign=go_player.ign
-        #     )
-        #     session.add(ign_row)
-
         session.commit()
         
         
@@ -60,38 +54,6 @@ class GoDB:
     def player_count(self, session):
         statement = select(func.count(GoPlayer.discord_id))
         return session.exec(statement).one()
-
-
-#     def update_player(
-#         self,
-#         session: Session,
-#         discord_id: str,
-#         ign: str = None,
-#         last_login: datetime = None,
-#         avatar_url: str = None,
-#     ) -> None:
-
-#         logger.info(f"Updating GoPlayer with ID {discord_id} in DB")
-
-#         # Get the go_player, can throw PlayerNotFoundError
-#         go_player = self.read_player(discord_id=discord_id, session=session)
-
-#         if ign:
-#             go_player.ign = ign
-
-#         if last_login:
-#             go_player.last_login = last_login
-
-#         if avatar_url:
-#             go_player.avatar_url = avatar_url
-
-#         session.add(go_player)
-
-#         if ign:
-#             self.check_update_ign_history(go_player=go_player, session=session)
-
-#         session.commit()
-#         logger.info(f"Updated GoPlayer with ID {discord_id} in DB")
 
 
     def delete_player(self, session: Session, discord_id: int) -> None:
@@ -132,11 +94,17 @@ class GoDB:
         
         
     def create_team(self, team_name:str, go_players:List[GoPlayer], session: Session) -> GoTeam:
-        logger.info("Creating GoTeam in DB")
+        logger.info(f"Creating GoTeam {team_name = } in DB")
         ids = {p.discord_id for p in go_players}
         team_size = len(go_players)
         if len(ids) != team_size:
             raise GoDbError(f"Cannot team: contains duplicate players")
+        
+        # make sure team doesn't already exist
+        existing_team = self.read_team_with_roster(discord_ids=ids, session=session)
+        if existing_team is not None:
+            raise GoDbError(f"Team with roster { {p.discord_name for p in go_players} } already exists.")
+        
         team = GoTeam(team_name=team_name, team_size=team_size)
         session.add(team)
         session.commit()
@@ -162,49 +130,75 @@ class GoDB:
         
 
     def signup_count(self, session):
-        statement = select(func.count(GoSignup.discord_id))
+        statement = select(func.count(GoSignup.team_id))
         return session.exec(statement).one()
         
-#     def add_career_stats(self, stats: PfCareerStats, session: Session) -> None:
-#         logger.info("Adding CareerStats in DB")
-#         session.add(stats)
-#         session.commit()
-
-
-#     def delete_all_career_stats(self, session: Session) -> None:
-#         logger.info("Deleting all CareerStats from DB")
-#         statement = select(PfCareerStats)
-#         results = session.exec(statement)
-
-#         for stats in results:
-#             session.delete(stats)
-#             session.commit()
-
-#         # Confirm the deletion
-#         results_post_delete = session.exec(statement)
-#         stats_post_delete = results_post_delete.all()
-
-#         if stats_post_delete == []:
-#             logger.info("All Stats were confirmed deleted")
-#         else:
-#             logger.error("All Stats were not deleted")
-#             raise DataNotDeletedError("All Stats were not deleted")
         
-           
-#     def check_update_ign_history(self, go_player: GoPlayer, session: Session) -> None:
-#         """ 
-#             Check if go_player.ign is new. If so create a new IgnHistory entry.
-#         """
-#         ign_hist = go_player.ign_history
-#         ign_hist.sort(key=lambda x: x.date)
-#         most_recent_ign = ign_hist and ign_hist[-1].ign or None
+    def add_signup(self, team: GoTeam, date: datetype, session: Session):
+        logger.info("Adding new signup to DB")
         
-#         if most_recent_ign != go_player.ign:
-#             ign_row = PfIgnHistory(
-#                 discord_id=go_player.discord_id,
-#                 date=datetime.now(),
-#                 ign=go_player.ign
-#             )
-#             session.add(ign_row)
-
-#         session.commit()
+        current_signups = self.read_signups(date=date, session=session)
+        discord_ids = {r.discord_id for r in team.rosters}
+        
+        for tp in current_signups:
+            if tp.player.discord_id in discord_ids:
+                player = self.read_player(discord_id=tp.player.discord_id, session=session)
+                raise GoDbError(f"Player {player.discord_name} already signed up for {date}.")
+        
+        signup = GoSignup(team_id=team.id, session_date=date)
+        session.add(signup)
+        session.commit()        
+    
+    
+    
+    def read_signups(self, date: datetype, session: Session) -> List[GoSignup]:
+        """ returns empty list if none found for that date """
+        logger.info(f"Reading Signups for {date = } from DB")
+        statement = (
+            select(GoTeam, GoPlayer, GoRoster, GoSignup)
+            .where(GoSignup.session_date == date)
+            .where(GoSignup.team_id == GoRoster.team_id)
+            .where(GoRoster.team_id == GoTeam.id)
+            .where(GoRoster.discord_id == GoPlayer.discord_id)
+            .order_by(GoTeam.team_name, GoPlayer.discord_id)
+        )
+        result = session.exec(statement)
+        signups = [GoTeamPlayer(team=team, player=player) for (team, player, _roster, _signup) in result]
+        logger.info(f"Returning {len(signups)} signups")
+        return signups
+   
+    
+    
+    def read_team_with_roster(self, discord_ids: Set[int], session: Session) -> GoTeam:
+        logger.info(f"Finding team with {discord_ids = } from DB")
+        
+        # get all teams with the correct number of players
+        team_ids = set()
+        statement = select(GoTeam).where(GoTeam.team_size == len(discord_ids))
+        result = session.exec(statement)
+        for r in result:
+            team_ids.add(r.id)
+        
+        for discord_id in discord_ids:
+            statement = select(GoRoster).where(GoRoster.discord_id == discord_id)
+            player_teams = {roster.team_id for roster in session.exec(statement)}
+            team_ids.intersection_update(player_teams)
+        
+        if len(team_ids) > 1:
+            logger.error(f"Error: More than one team found with with {discord_ids = }")            
+            raise GoDbError("Error: More than one team found with that roster")
+       
+        elif len(team_ids) == 0:
+            logger.info(f"No team found with that roster")
+            return None
+        
+        elif len(team_ids) == 1:
+            team_id = team_ids.pop()
+            statement = select(GoTeam).where(GoTeam.id == team_id)
+            team = session.exec(statement).first()
+            
+            logger.info(f"Returning team with {team.id = }")
+            return team
+        
+        else:
+            raise Exception("Unreachable")
