@@ -49,11 +49,19 @@ class PlayfabDB:
         logger.info(f"Reading PfPlayer with Playfab ID {pf_player_id} from DB")
         statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
         result: PfPlayer = session.exec(statement).first()
-        if result:
-            return result
-        else:
-            logger.error("PfPlayer not found")
-            raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
+        return result
+        # if result:
+        #     return result
+        # else:
+        #     logger.error("PfPlayer not found")
+        #     raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
+
+
+    def read_player_by_ign(self, ign: str, session: Session) -> PfPlayer:
+        logger.info(f"Reading PfPlayer with {ign = } from DB")
+        statement = select(PfPlayer).where(PfPlayer.ign == ign)
+        result: PfPlayer = session.exec(statement).first()
+        return result
 
 
     def player_count(self, session):
@@ -166,3 +174,8 @@ class PlayfabDB:
             session.add(ign_row)
 
         session.commit()
+
+
+    def ign_history_count(self, session):
+        statement = select(func.count(PfIgnHistory.ign))
+        return session.exec(statement).one()

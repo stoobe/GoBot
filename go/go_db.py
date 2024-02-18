@@ -16,10 +16,10 @@ from go.models import GoPlayer, GoRoster, GoSignup, GoTeam
 logger = create_logger()
 
 
-class GoTeamPlayer(BaseModel):
+class GoTeamPlayerSignup(BaseModel):
     team: GoTeam
     player: GoPlayer
-    
+    signup: GoSignup
 
 class GoDB:
     
@@ -44,12 +44,8 @@ class GoDB:
         logger.info(f"Reading GoPlayer with {discord_id = } from DB")
         statement = select(GoPlayer).where(GoPlayer.discord_id == discord_id)
         result: GoPlayer = session.exec(statement).first()
-        if result:
-            return result
-        else:
-            logger.error("GoPlayer not found")
-            raise PlayerNotFoundError(f"GoPlayer with {discord_id = } not found")
-
+        return result
+    
 
     def player_count(self, session):
         statement = select(func.count(GoPlayer.discord_id))
@@ -98,7 +94,7 @@ class GoDB:
         ids = {p.discord_id for p in go_players}
         team_size = len(go_players)
         if len(ids) != team_size:
-            raise GoDbError(f"Cannot team: contains duplicate players")
+            raise GoDbError(f"Cannot create team: contains duplicate players")
         
         # make sure team doesn't already exist
         existing_team = self.read_team_with_roster(discord_ids=ids, session=session)
@@ -137,40 +133,62 @@ class GoDB:
     def add_signup(self, team: GoTeam, date: datetype, session: Session):
         logger.info("Adding new signup to DB")
         
-        current_signups = self.read_signups(date=date, session=session)
+        current_signups = self.read_player_signups(date=date, session=session)
         discord_ids = {r.discord_id for r in team.rosters}
         
         for tp in current_signups:
             if tp.player.discord_id in discord_ids:
                 player = self.read_player(discord_id=tp.player.discord_id, session=session)
-                raise GoDbError(f"Player {player.discord_name} already signed up for {date}.")
+                raise GoDbError(f'Player {player.discord_name} is already signed up for {date} for team "{tp.team.team_name}".')
         
         signup = GoSignup(team_id=team.id, session_date=date)
         session.add(signup)
         session.commit()        
-    
-    
-    
-    def read_signups(self, date: datetype, session: Session) -> List[GoSignup]:
+
+   
+    def read_player_signups(self,
+                     session: Session, 
+                     date: datetype = None, 
+                     team_id: int = None, 
+                     discord_id: int = None
+                     ) -> List[GoTeamPlayerSignup]:
+           
         """ returns empty list if none found for that date """
+        
         logger.info(f"Reading Signups for {date = } from DB")
         statement = (
             select(GoTeam, GoPlayer, GoRoster, GoSignup)
-            .where(GoSignup.session_date == date)
             .where(GoSignup.team_id == GoRoster.team_id)
             .where(GoRoster.team_id == GoTeam.id)
             .where(GoRoster.discord_id == GoPlayer.discord_id)
-            .order_by(GoTeam.team_name, GoPlayer.discord_id)
         )
+        
+        if date is not None:
+            statement = statement.where(GoSignup.session_date == date)
+        
+        if team_id is not None:
+            statement = statement.where(GoTeam.id == team_id)
+            
+        if discord_id is not None:
+            statement = statement.where(GoPlayer.discord_id == discord_id)
+            
+        statement = statement.order_by(GoTeam.team_name, GoPlayer.discord_id)
+        
         result = session.exec(statement)
-        signups = [GoTeamPlayer(team=team, player=player) for (team, player, _roster, _signup) in result]
+        signups = [GoTeamPlayerSignup(team=team, player=player, signup=signup) for (team, player, _roster, signup) in result]
         logger.info(f"Returning {len(signups)} signups")
         return signups
    
+   
+    def read_team(self, team_id:id, session: Session) -> GoTeam:
+        logger.info(f"Reading GoTeam with {team_id = } from DB")
+        statement = select(GoTeam).where(GoTeam.id == team_id)
+        team = session.exec(statement).first()
+        return team
     
     
     def read_team_with_roster(self, discord_ids: Set[int], session: Session) -> GoTeam:
-        logger.info(f"Finding team with {discord_ids = } from DB")
+        logger.info(f"Reading GoTeam with {discord_ids = } from DB")
         
         # get all teams with the correct number of players
         team_ids = set()
@@ -202,3 +220,12 @@ class GoDB:
         
         else:
             raise Exception("Unreachable")
+
+    
+    
+    def read_team_with_name(self, team_name:str, session: Session) -> GoTeam:
+        logger.info(f"Reading GoTeam with {team_name = } from DB")
+        statement = select(GoTeam).where(GoTeam.team_name == team_name)
+        team = session.exec(statement).first()
+        return team
+        
