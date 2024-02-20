@@ -231,7 +231,7 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
     assert 0 == godb.signup_count(session=session)
 
 
-def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
+def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
     gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1)
     with pytest.raises(DiscordUserError):
         gocog_preload.do_cancel(player=du3, date=date1)

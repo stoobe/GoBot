@@ -1,4 +1,3 @@
-import sqlite3
 import datetime
 from datetime import date as datetype
 from typing import List
@@ -14,6 +13,7 @@ from go.go_db import GoDB, GoTeamPlayerSignup
 from go.models import GoPlayer, GoTeam
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
+
 
 logger = create_logger()
 
