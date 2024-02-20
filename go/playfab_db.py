@@ -8,9 +8,8 @@ from go.logger import create_logger
 from go.models import PfCareerStats, PfIgnHistory, PfPlayer
 
 
-# filename = os.path.splitext(os.path.basename(__file__))[0]
-# logger = create_logger(logger_name=filename)
-logger = create_logger()
+logger = create_logger(__name__)
+
 
 
 class PlayfabDB:

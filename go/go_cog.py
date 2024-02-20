@@ -15,7 +15,7 @@ from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
 
-logger = create_logger()
+logger = create_logger(__name__)
 
 
 def get_name(member: discord.Member):

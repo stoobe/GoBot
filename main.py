@@ -1,17 +1,21 @@
 import asyncio
 import sqlite3
 import datetime
-from sqlmodel import SQLModel, create_engine, Engine
+from sqlalchemy import Engine
+from sqlmodel import SQLModel, create_engine
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+from go.logger import create_logger
 
-import go.GoCog as GoCog
+from go.go_cog import GoCog
 import config
 from go.go_db import GoDB
 from go.playfab_db import PlayfabDB
 
+
+logger = create_logger(__name__)
 
 MY_GUILD = discord.Object(id=config.guild_id)
 
@@ -28,7 +32,7 @@ class MyBot(commands.Bot):
     # By doing so, we don't have to wait up to an hour until they are shown to the end-user.
     async def setup_hook(self):
         # This copies the global commands over to your guild.
-        print("setup_hook start")
+        logger.info("setup_hook start")
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
         
@@ -40,7 +44,7 @@ class MyBot(commands.Bot):
         # print(f"remove say {self.remove_command('what')}")
         # await self.tree.sync(guild=MY_GUILD)
 
-        print("setup_hook end")
+        logger.info("setup_hook end")
 
 
 async def main():
@@ -55,11 +59,11 @@ async def main():
     bot = MyBot(command_prefix="!", intents=intents, engine=engine)
 
     async with bot:
-        await bot.load_extension("GoCog")
+        logger.info("before bot.load_extension")        
+        await bot.load_extension("go.go_cog")
+        logger.info("bot.start")        
         await bot.start(config.bot_token)
+        logger.info("end")        
 
-
-    
-    
 if __name__ == "__main__":
     asyncio.run(main())

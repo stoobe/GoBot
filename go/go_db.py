@@ -13,7 +13,7 @@ from go.models import GoPlayer, GoRoster, GoSignup, GoTeam
 
 # filename = os.path.splitext(os.path.basename(__file__))[0]
 # logger = create_logger(logger_name=filename)
-logger = create_logger()
+logger = create_logger(__name__)
 
 
 class GoTeamPlayerSignup(BaseModel):
