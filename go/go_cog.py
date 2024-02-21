@@ -79,7 +79,7 @@ class GoCog(commands.Cog):
             # lookup the playfab_player by ign
             pf_p = self.pfdb.read_player_by_ign(ign=ign, session=session)
             if pf_p == None:
-                msg = f'Could not find any stats for IGN = {ign}'
+                msg = f'Could not find a Population One account with IGN = "{ign}"'
                 raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
 
             go_p.pf_player_id = pf_p.id
@@ -275,15 +275,47 @@ class GoCog(commands.Cog):
     
 
     @admin_group.command( 
-        description="Owner only"
+        description="Admin tool for syncing commands"
         )
     async def sync(self, interaction: discord.Interaction):
-        if interaction.user.id == config.owner_id:
-            await self.bot.tree.sync()
-            await interaction.response.send_message('Command tree synced.')
-            logger.info('Command tree synced.')
-        else:
+        if interaction.user.id != config.owner_id:
             await interaction.response.send_message('You must be the owner to use this command!')
+            return
+
+        await self.bot.tree.sync(guild=config.guild_id)
+        await interaction.response.send_message('Command tree synced.')
+        logger.info('Command tree synced.')
+
+
+
+
+    @admin_group.command( 
+        description="Admin tool to set a user's In Game Name"
+        )
+    async def set_ign(
+            self, 
+            interaction: discord.Interaction, 
+            user: discord.Member, 
+            ign: str
+        ):
+        if interaction.user.id != config.owner_id:
+            await interaction.response.send_message('You must be the owner to use this command!')
+            return
+        
+        player = convert_user(user)
+        logger.info(f"Running zadmin.set_ign({player.name}, {ign})")
+        
+        try:
+            self.do_set_ign(player=player, ign=ign)
+            msg = f'IGN for {player.name} set to "{ign}"'
+            logger.info(msg)
+            await interaction.response.send_message(msg) 
+            
+        except DiscordUserError as err:
+            logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
+
+
     
     
     async def cog_load(self):
