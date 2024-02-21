@@ -8,7 +8,7 @@ from discord.ext import commands
 from pydantic import BaseModel
 from sqlmodel import Session
 
-import config
+import _config
 
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
@@ -16,6 +16,8 @@ from go.models import GoPlayer, GoTeam
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
+
+MY_GUILD = discord.Object(id=_config.guild_id)
 
 logger = create_logger(__name__)
 
@@ -278,11 +280,11 @@ class GoCog(commands.Cog):
         description="Admin tool for syncing commands"
         )
     async def sync(self, interaction: discord.Interaction):
-        if interaction.user.id != config.owner_id:
+        if interaction.user.id != _config.owner_id:
             await interaction.response.send_message('You must be the owner to use this command!')
             return
 
-        await self.bot.tree.sync(guild=config.guild_id)
+        await self.bot.tree.sync(guild=MY_GUILD)
         await interaction.response.send_message('Command tree synced.')
         logger.info('Command tree synced.')
 
@@ -298,7 +300,7 @@ class GoCog(commands.Cog):
             user: discord.Member, 
             ign: str
         ):
-        if interaction.user.id != config.owner_id:
+        if interaction.user.id != _config.owner_id:
             await interaction.response.send_message('You must be the owner to use this command!')
             return
         
@@ -319,7 +321,7 @@ class GoCog(commands.Cog):
     
     
     async def cog_load(self):
-        print(f"cog {[c.qualified_name for c in self.walk_commands()]}")
+        logger.info(f"cog_load commands: {[c.qualified_name for c in self.walk_commands()]}")
 
         
 

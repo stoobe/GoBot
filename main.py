@@ -12,14 +12,14 @@ from discord.ext import commands
 import go.logger
 from go.logger import create_logger
 from go.go_cog import GoCog
-import config
+import _config
 from go.go_db import GoDB
 from go.playfab_db import PlayfabDB
 
 
 logger = create_logger(__name__)
 
-MY_GUILD = discord.Object(id=config.guild_id)
+MY_GUILD = discord.Object(id=_config.guild_id)
 
 
 class MyBot(commands.Bot):
@@ -34,7 +34,7 @@ class MyBot(commands.Bot):
     # By doing so, we don't have to wait up to an hour until they are shown to the end-user.
     async def setup_hook(self):
         # This copies the global commands over to your guild.
-        logger.info(f"setup_hook start {[c.qualified_name for c in self.tree.walk_commands()]}")
+        logger.info(f"setup_hook start commands {[c.qualified_name for c in self.tree.walk_commands()]}")
 
         # # emergency resync, otherwise use /zadmin sync from Discord
         # await self.tree.sync(guild=MY_GUILD)        
@@ -52,20 +52,18 @@ class MyBot(commands.Bot):
         # await self.tree.sync(guild=MY_GUILD)                
         # print(f"mybot2 {[c.qualified_name for c in self.tree.walk_commands()]}")
 
-        logger.info(f"setup_hook end   {[c.qualified_name for c in self.tree.walk_commands()]}")
+        logger.info(f"setup_hook end commands:   {[c.qualified_name for c in self.tree.walk_commands()]}")
             
         
 
 
 async def main():
 
-    sqlite_file_name = "gobot.db"
-    sqlite_url = f"sqlite:///{sqlite_file_name}"
-    engine = create_engine(sqlite_url, echo=False)
+    engine = create_engine(_config.godb_url, echo=_config.godb_echo)
 
     SQLModel.metadata.create_all(engine)
     
-    discord.utils.setup_logging(level=logging.INFO, root=False, formatter=go.logger.formatter)
+    discord.utils.setup_logging(level=_config.logging_level, root=False, formatter=go.logger.formatter)
     
     # You must have access to the message_content intent for the commands extension to function. 
     # This must be set both in the developer portal and within your code.
@@ -77,7 +75,7 @@ async def main():
         logger.info("before bot.load_extension")        
         await bot.load_extension("go.go_cog")
         logger.info("bot.start")        
-        await bot.start(config.bot_token)
+        await bot.start(_config.bot_token)
         logger.info("end")        
 
 if __name__ == "__main__":

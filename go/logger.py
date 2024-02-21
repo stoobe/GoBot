@@ -3,6 +3,7 @@ import asyncio
 import logging
 import logging.handlers
 
+import _config
 
 is_logger_setup = set()
 
@@ -12,7 +13,7 @@ formatter = logging.Formatter('{asctime}.{msecs:03.0f}  {levelname:<8}  {name:<1
 def create_logger(logger_name: str = __name__):
     logger = logging.getLogger(logger_name)
     if logger_name not in is_logger_setup:
-        logger.setLevel(logging.INFO)  # Log messages at INFO level and above
+        logger.setLevel(_config.logging_level)  # Log messages at INFO level and above
         console_handler = logging.StreamHandler()
         # formatter = logging.Formatter(
         #     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

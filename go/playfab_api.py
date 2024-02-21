@@ -7,7 +7,7 @@ from dateutil import parser
 import requests
 import json
 
-import config
+import _config
 from go.models import PfCareerStats
 
 
@@ -33,7 +33,7 @@ class PlayfabApi:
         if self.session_ticket:
             headers['X-Authorization'] = self.session_ticket
         
-        api_url = f'https://{config.playfab_title_id}.playfabapi.com/Client/{command}'
+        api_url = f'https://{_config.playfab_title_id}.playfabapi.com/Client/{command}'
         response = requests.post(api_url, data=json.dumps(payload), headers=headers)
 
         if response.status_code == 200:
@@ -80,10 +80,10 @@ class PlayfabApi:
 
     def login_to_playfab(self) -> None:
         payload = {
-            "TitleId": config.playfab_title_id,
-            "Username": config.playfab_user,
-            "Email": config.playfab_email,
-            "Password": config.playfab_pass,
+            "TitleId": _config.playfab_title_id,
+            "Username": _config.playfab_user,
+            "Email": _config.playfab_email,
+            "Password": _config.playfab_pass,
         }
 
         response = self.run_request('LoginWithEmailAddress', payload)
