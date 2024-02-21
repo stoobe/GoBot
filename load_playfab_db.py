@@ -1,3 +1,4 @@
+import argparse
 from datetime import datetime, timedelta
 from dateutil import parser
 from sqlmodel import SQLModel, Session, create_engine, select
@@ -6,12 +7,19 @@ from go.playfab_api import PlayfabApi
 from go.playfab_db import PlayfabDB
 from go.models import PfCareerStats, PfIgnHistory, PfPlayer
 
+import _config
+
+
+
 def main():
+
+    parser = argparse.ArgumentParser(description="sample argument parser")
+    parser.add_argument("--start", default=0, type=int, required=False)
+    parser.add_argument("--end", default=10, type=int, required=False)
+    parser.add_argument("--batchsize", default=100, type=int, required=False)
+    args = parser.parse_args()
         
-    sqlite_file_name = "test.db"
-    sqlite_url = f"sqlite:///{sqlite_file_name}"
-    # sqlite_url = f"sqlite://" # in mem
-    engine = create_engine(sqlite_url, echo=False)
+    engine = create_engine(_config.godb_url, echo=_config.godb_echo)
 
     SQLModel.metadata.create_all(engine)
 
@@ -22,17 +30,22 @@ def main():
 
     with Session(engine) as session:
 
-        start = 0
-        count = 100
-        end = 20000
+        start = args.start
+        batchsize = args.batchsize
+        end = args.end
         while start<end:
+            
+            if start + batchsize > end:
+                batchsize = end - start
+            
             print("\n\n\n")
             print("======================================================")
-            print(f"start {start}, end {end}, count {count}")
+            print(f"start {start}, end {end}, batchsize {batchsize}")
             print("======================================================")
             
-            leaderboard = pfapi.get_leaderboard(start_rank=start, count=count)
-            start += count
+            
+            leaderboard = pfapi.get_leaderboard(start_rank=start, batchsize=batchsize)
+            start += batchsize
 
             for lb_row in leaderboard:
                 print("\n")

@@ -102,9 +102,9 @@ class PlayfabApi:
         last_login: datetime
         
         
-    def get_leaderboard(self, start_rank:int, count:int, stat_name:str="CareerWins") -> List[LeaderboardRow]:
+    def get_leaderboard(self, start_rank:int, batchsize:int, stat_name:str="CareerWins") -> List[LeaderboardRow]:
         payload = {
-            'MaxResultsCount': count,
+            'MaxResultsCount': batchsize,
             'StartPosition' : start_rank,
             'StatisticName' : stat_name,
             'ProfileConstraints' : {

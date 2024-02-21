@@ -12,17 +12,24 @@ pip install -r requirements.txt
 
 * Setup:
 sudo yum update
-sudo yum install mariadb105 git emacs-nox
+sudo yum install mariadb105 git emacs-nox python-devel
 
-sudu dnf update
-sudo dnf install mariadb105 git emacs-nox
+sudo dnf update
+sudo dnf install mariadb105 git emacs-nox python-devel
 
 curl -O https://bootstrap.pypa.io/get-pip.py
 python3 get-pip.py --user
 echo "export PATH=~/.local/bin:\$PATH" >> .bashrc
 source .bashrc
+rm get-pip.py
 
 git clone https://github.com/stoobe/GoBot.git
+
+pip install pipupgrade
+pipupgrade --verbose --latest --yes
+
+
+pip install -r requirements.txt
 
 pip install discord attrs
 pip install --upgrade discord attrs
