@@ -8,6 +8,8 @@ from discord.ext import commands
 from pydantic import BaseModel
 from sqlmodel import Session
 
+import config
+
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
 from go.models import GoPlayer, GoTeam
@@ -41,7 +43,9 @@ class GoCog(commands.Cog):
         self.pfdb:PlayfabDB = bot.pfdb
 
 
-    group = app_commands.Group(name="go", description="...")
+    go_group = app_commands.Group(name="go", description="GO League Commands")
+    admin_group = app_commands.Group(name="zadmin", description="Admin Commands")
+    
     # Above, we declare a command Group, in discord terms this is a parent command
     # We define it within the class scope (not an instance scope) so we can use it as a decorator.
     # This does have namespace caveats but i don't believe they're worth outlining in our needs.
@@ -83,7 +87,7 @@ class GoCog(commands.Cog):
             session.commit()
 
 
-    @group.command( 
+    @go_group.command( 
         description="Set your In Game Name"
         )
     async def set_ign(self, interaction: discord.Interaction, ign: str):
@@ -185,7 +189,7 @@ class GoCog(commands.Cog):
 
         
         
-    @group.command( 
+    @go_group.command( 
         description="Sign up your team to play on a day"
         )
     async def signup(self, interaction: discord.Interaction, 
@@ -244,7 +248,7 @@ class GoCog(commands.Cog):
 
         
         
-    @group.command( 
+    @go_group.command( 
         description="Cancel a signup for a day"
         )
     async def cancel(self, interaction: discord.Interaction):
@@ -268,7 +272,24 @@ class GoCog(commands.Cog):
         except DiscordUserError as err:
             logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message) 
-            
+    
+
+    @admin_group.command( 
+        description="Owner only"
+        )
+    async def sync(self, interaction: discord.Interaction):
+        if interaction.user.id == config.owner_id:
+            await self.bot.tree.sync()
+            await interaction.response.send_message('Command tree synced.')
+            logger.info('Command tree synced.')
+        else:
+            await interaction.response.send_message('You must be the owner to use this command!')
+    
+    
+    async def cog_load(self):
+        print(f"cog {[c.qualified_name for c in self.walk_commands()]}")
+
+        
 
 
 async def setup(bot: commands.Bot) -> None:
