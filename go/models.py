@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from typing import List, Optional
+from sqlalchemy import BigInteger, Column, ForeignKey
 
 from sqlmodel import Field, Relationship, SQLModel, create_engine
 
@@ -7,9 +8,9 @@ from sqlmodel import Field, Relationship, SQLModel, create_engine
 class GoPlayer(SQLModel, table=True):
     __tablename__ = "go_player"
     
-    discord_id: int = Field(primary_key=True, unique=True)
+    discord_id: int = Field(sa_column=Column(BigInteger(), primary_key=True, unique=True))
     discord_name: str
-    pf_player_id: Optional[int] = Field(default=None, foreign_key="pf_player.id", unique=True)
+    pf_player_id: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), default=None, unique=True))
     created_at: datetime = Field(default=datetime.now())
 
     rosters : List["GoRoster"] = Relationship(back_populates="player", sa_relationship_kwargs={"cascade": "delete"})
@@ -31,7 +32,7 @@ class GoRoster(SQLModel, table=True):
     __tablename__ = "go_roster"
     
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
-    discord_id: int = Field(primary_key=True, foreign_key="go_player.discord_id")
+    discord_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), primary_key=True))
     
     player: GoPlayer = Relationship(back_populates="rosters")
     team: GoTeam = Relationship(back_populates="rosters")
@@ -49,7 +50,7 @@ class GoSignup(SQLModel, table=True):
 class GoRatings(SQLModel, table=True):
     __tablename__ = "go_ratings"
     
-    discord_id: int = Field(primary_key=True, foreign_key="go_player.discord_id")
+    discord_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), primary_key=True))
     go_rating: float
 
 
@@ -58,7 +59,7 @@ class GoRatings(SQLModel, table=True):
 class PfPlayer(SQLModel, table=True):
     __tablename__ = "pf_player"
 
-    id: int = Field(primary_key=True)
+    id: int = Field(sa_column=Column(BigInteger(), primary_key=True))
     ign: str = Field(index=True)
     account_created: datetime
     last_login: datetime 
@@ -77,7 +78,7 @@ class PfCareerStats(SQLModel, table=True):
     __tablename__ = "pf_career_stats"
 
     date: datetime = Field(primary_key=True)
-    pf_player_id: int = Field(primary_key=True, foreign_key="pf_player.id")
+    pf_player_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), primary_key=True))
     games: int
     wins: int
     kills: int
@@ -91,7 +92,7 @@ class PfCareerStats(SQLModel, table=True):
 class PfIgnHistory(SQLModel, table=True):
     __tablename__ = "pf_ign_history"
 
-    pf_player_id: int = Field(primary_key=True, foreign_key="pf_player.id")
+    pf_player_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), primary_key=True))
     date: datetime = Field(primary_key=True)
     ign: str
 
