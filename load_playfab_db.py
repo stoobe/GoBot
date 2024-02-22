@@ -89,7 +89,7 @@ def main():
                 now = datetime.now()
                 if career_stats and (now - career_stats[-1].date) < timedelta(days=args.recent):
                     # we already have pretty recent stats
-                    logger.info(f"Already have recent stats for: {player.ign}")
+                    logger.info(f"Already have recent stats for: {player.ign} at {career_stats[-1].date}")
                     pass
                 else:
                     logger.info(f"Getting stats for: {player.ign}")
