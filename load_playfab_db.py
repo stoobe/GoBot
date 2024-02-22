@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--end", default=10, type=int, required=False)
     parser.add_argument("--batchsize", default=100, type=int, required=False)
     parser.add_argument("--statname", default='CareerWins', type=str, required=False, help="CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal")
+    parser.add_argument("--min", default=0, type=int, required=False, help="Stop running after statname value gets below min")
+    
     args = parser.parse_args()
         
     engine = create_engine(_config.godb_url, echo=_config.godb_echo)
@@ -52,6 +54,11 @@ def main():
 
             for lb_row in leaderboard:
                 logger.info("")
+
+                if args.min and lb_row.stat_value < args.min:
+                    logger.info(f"Minimum stat value reached {lb_row.stat_value} < {args.min}")
+                    start = end
+                    break
 
                 player = PfPlayer(
                     id = lb_row.player_id,
@@ -88,8 +95,6 @@ def main():
                     stats = pfapi.get_player_career_stats(player_id=player.id)
                     session.add(stats)
                     session.commit()          
-
-        session.close()
 
 
 if __name__=='__main__':
