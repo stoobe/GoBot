@@ -21,7 +21,8 @@ def main():
     parser.add_argument("--batchsize", default=100, type=int, required=False)
     parser.add_argument("--statname", default='CareerWins', type=str, required=False, help="CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal")
     parser.add_argument("--min", default=0, type=int, required=False, help="Stop running after statname value gets below min")
-    
+    parser.add_argument("--recent", default=1, type=float, required=False, help="Skip getting new stats if there are recent ones within x days")
+
     args = parser.parse_args()
         
     engine = create_engine(_config.godb_url, echo=_config.godb_echo)
@@ -86,7 +87,7 @@ def main():
                 career_stats.sort(key=lambda x: x.date)
                
                 now = datetime.now()
-                if career_stats and (now - career_stats[-1].date) < timedelta(days=1):
+                if career_stats and (now - career_stats[-1].date) < timedelta(days=args.recent):
                     # we already have pretty recent stats
                     logger.info(f"Already have recent stats for: {player.ign}")
                     pass
