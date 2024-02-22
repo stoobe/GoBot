@@ -6,8 +6,10 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from go.playfab_api import PlayfabApi
 from go.playfab_db import PlayfabDB
 from go.models import PfCareerStats, PfIgnHistory, PfPlayer
+from go.logger import create_logger
 
 import _config
+logger = create_logger(__name__)
 
 
 
@@ -38,17 +40,17 @@ def main():
             if start + batchsize > end:
                 batchsize = end - start
             
-            print("\n\n\n")
-            print("======================================================")
-            print(f"start {start}, end {end}, batchsize {batchsize}")
-            print("======================================================")
+            logger.info("======================================================")
+            logger.info("======================================================")
+            logger.info(f"Loading: {start = }, {end = }, {batchsize = }")
+            logger.info("------------------------------------------------------")
             
             
             leaderboard = pfapi.get_leaderboard(start_rank=start, batchsize=batchsize)
             start += batchsize
 
             for lb_row in leaderboard:
-                print("\n")
+                logger.info("")
 
                 player = PfPlayer(
                     id = lb_row.player_id,
@@ -57,10 +59,10 @@ def main():
                     last_login = lb_row.last_login,                                        
                 )
 
-                print(f"Rank {lb_row.stat_rank}, Value {lb_row.stat_value} -- {player}")
+                logger.info(f"Rank {lb_row.stat_rank}, Value {lb_row.stat_value} -- {player}")
                 
                 if pfdb.player_exists(pf_player_id=player.id, session=session):
-                    print("Player already in DB")
+                    logger.info("Player already in DB")
                     pfdb.update_player(
                         session=session,
                         pf_player_id=player.id,
@@ -78,10 +80,10 @@ def main():
                 now = datetime.now()
                 if career_stats and (now - career_stats[-1].date) < timedelta(days=1):
                     # we already have pretty recent stats
-                    print(f"Already have recent stats for: {player.ign}")
+                    logger.info(f"Already have recent stats for: {player.ign}")
                     pass
                 else:
-                    print(f"Getting stats for: {player.ign}")
+                    logger.info(f"Getting stats for: {player.ign}")
                     stats = pfapi.get_player_career_stats(player_id=player.id)
                     session.add(stats)
                     session.commit()          

@@ -9,7 +9,9 @@ import json
 
 import _config
 from go.models import PfCareerStats
+from go.logger import create_logger
 
+logger = create_logger(__name__)
 
 def as_playfab_id(player_id: int) -> str:
     return hex(player_id + 2**63).upper()[2:]
@@ -32,16 +34,16 @@ class PlayfabApi:
         headers = {'Content-Type': 'application/json'}
         if self.session_ticket:
             headers['X-Authorization'] = self.session_ticket
-        
+
         api_url = f'https://{_config.playfab_title_id}.playfabapi.com/Client/{command}'
         response = requests.post(api_url, data=json.dumps(payload), headers=headers)
 
         if response.status_code == 200:
             response_data = response.json()
-            print("Request succeeded.")
+            logger.debug(f"run_request for {command = } succeeded.")
             return response
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            logger.error(f"Error: {response.status_code} - {response.text}")
             return None
 
 
@@ -74,7 +76,6 @@ class PlayfabApi:
             mmr=stat_name_to_val.get("MMR1", None),
             skill=stat_name_to_val.get("PlayerSkill", None)
         )
-        print(f"stats: {stats}")
         return stats
 
 
@@ -89,7 +90,7 @@ class PlayfabApi:
         response = self.run_request('LoginWithEmailAddress', payload)
         response_data = response.json()
         self.session_ticket = response_data['data']['SessionTicket']
-        print(f"session ticket set")
+        logger.info(f"login_to_playfab: session ticket set")
 
 
     @define
@@ -121,7 +122,7 @@ class PlayfabApi:
 
         leaderboard = []
         for item in response_data["data"]["Leaderboard"]:
-            print(f"Parsing {item['DisplayName']} with {item['StatValue']}  {stat_name}.")
+            logger.info(f"get_leaderboard() -- parsing entry for player {item['DisplayName']} with {item['StatValue']} {stat_name}.")
 
             lb_row = PlayfabApi.LeaderboardRow(
                 player_id = as_player_id(item["PlayFabId"]),
@@ -132,9 +133,9 @@ class PlayfabApi:
                 last_login = parser.parse(item["Profile"]["LastLogin"])
                 )
             
-            ic(lb_row)
+            logger.debug(f"get_leaderboard() -- row: {lb_row}")
             leaderboard.append(lb_row)
 
-        print(f"returning {len(leaderboard)} leaderboard items")
+        logger.info(f"get_leaderboard() -- returning {len(leaderboard)} items")
         return leaderboard
     
