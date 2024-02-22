@@ -122,19 +122,22 @@ class PlayfabApi:
 
         leaderboard = []
         for item in response_data["data"]["Leaderboard"]:
-            logger.info(f"get_leaderboard() -- parsing entry for player {item['DisplayName']} with {item['StatValue']} {stat_name}.")
+            try:
+                logger.info(f"get_leaderboard() -- parsing entry for player {item['DisplayName']} with {item['StatValue']} {stat_name}.")
 
-            lb_row = PlayfabApi.LeaderboardRow(
-                player_id = as_player_id(item["PlayFabId"]),
-                ign = item["DisplayName"],
-                stat_value = item['StatValue'], 
-                stat_rank = item['Position'],
-                account_created = parser.parse(item["Profile"]["Created"]),
-                last_login = parser.parse(item["Profile"]["LastLogin"])
-                )
-            
-            logger.debug(f"get_leaderboard() -- row: {lb_row}")
-            leaderboard.append(lb_row)
+                lb_row = PlayfabApi.LeaderboardRow(
+                    player_id = as_player_id(item["PlayFabId"]),
+                    ign = item["DisplayName"],
+                    stat_value = item['StatValue'], 
+                    stat_rank = item['Position'],
+                    account_created = parser.parse(item["Profile"]["Created"]),
+                    last_login = parser.parse(item["Profile"]["LastLogin"])
+                    )
+                
+                logger.debug(f"get_leaderboard() -- row: {lb_row}")
+                leaderboard.append(lb_row)
+            except KeyError as err:
+                logger.error(f'Skipping: KeyError {err} on {item = }')
 
         logger.info(f"get_leaderboard() -- returning {len(leaderboard)} items")
         return leaderboard
