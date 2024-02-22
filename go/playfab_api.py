@@ -71,7 +71,7 @@ class PlayfabApi:
             pf_player_id=player_id,
             games=stat_name_to_val.get("CareerGamesPlayed", 0),
             wins=stat_name_to_val.get("CareerWins", 0),
-            kills=stat_name_to_val.get("CareerGamesPlayed", 0),
+            kills=stat_name_to_val.get("CareerKills", 0),
             damage=stat_name_to_val.get("CareerDamage", 0),
             mmr=stat_name_to_val.get("MMR1", None),
             skill=stat_name_to_val.get("PlayerSkill", None)
