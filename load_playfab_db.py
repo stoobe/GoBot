@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--start", default=0, type=int, required=False)
     parser.add_argument("--end", default=10, type=int, required=False)
     parser.add_argument("--batchsize", default=100, type=int, required=False)
+    parser.add_argument("--statname", default='CareerWins', type=str, required=False, help="CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal")
     args = parser.parse_args()
         
     engine = create_engine(_config.godb_url, echo=_config.godb_echo)
@@ -46,7 +47,7 @@ def main():
             logger.info("------------------------------------------------------")
             
             
-            leaderboard = pfapi.get_leaderboard(start_rank=start, batchsize=batchsize)
+            leaderboard = pfapi.get_leaderboard(start_rank=start, batchsize=batchsize, stat_name=args.statname)
             start += batchsize
 
             for lb_row in leaderboard:
