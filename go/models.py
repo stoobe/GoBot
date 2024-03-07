@@ -50,7 +50,9 @@ class GoSignup(SQLModel, table=True):
 class GoRatings(SQLModel, table=True):
     __tablename__ = "go_ratings"
     
-    discord_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), primary_key=True))
+    pf_player_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), primary_key=True))
+    season: str = Field(primary_key=True)
+    rating_type: str = Field(primary_key=True)
     go_rating: float
 
 
