@@ -17,7 +17,7 @@ def test_connect_go_and_pf_players(godb, pfdb, session, go_p1, go_p2, pf_p1, pf_
     godb.create_player(go_player=go_p1, session=session)
     godb.create_player(go_player=go_p2, session=session)
     
-    pf_p = pfdb.read_player_by_ign(ign=pf_p1.ign, session=session)
+    pf_p = pfdb.read_players_by_ign(ign=pf_p1.ign, session=session)[0]
     assert pf_p is not None
     
     assert go_p1.pf_player is None
@@ -89,6 +89,14 @@ def test_set_ign_doesnt_exist(gocog, godb, pfdb, session, pf_p1, du1):
 
     with pytest.raises(DiscordUserError):
         gocog.do_set_ign(player=du1, ign="IGN DOESNT EXIST")
+
+
+def test_set_ign_duplicate_ign(gocog, godb, pfdb, session, pf_p1, du1, pf_p1v2):    
+    pfdb.create_player(player=pf_p1, session=session) 
+    pfdb.create_player(player=pf_p1v2, session=session)
+
+    with pytest.raises(DiscordUserError):
+        gocog.do_set_ign(player=du1, ign=pf_p1.ign)
 
 
 def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):

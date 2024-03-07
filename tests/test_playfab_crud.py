@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import pytest
+from go.models import PfPlayer
 
 from go.playfab_db import PfIgnHistory
 from go.exceptions import PlayerNotFoundError
@@ -28,19 +29,34 @@ def test_create_and_read_player(pfdb, session, pf_p1):
     assert ign_hist[0].date <= function_end
 
 
-def test_read_player_by_ign(pfdb, session, pf_p1, pf_p2):
+def test_read_players_by_ign(pfdb, session, pf_p1, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
 
-    player1 = pfdb.read_player_by_ign(ign=pf_p1.ign, session=session)
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign, session=session)
+    assert len(players) == 1
+    player1 = players[0]
     assert player1.id == pf_p1.id
 
-    player2 = pfdb.read_player_by_ign(ign=pf_p2.ign, session=session)
+    players = pfdb.read_players_by_ign(ign=pf_p2.ign, session=session)
+    assert len(players) == 1
+    player2 = players[0]    
     assert player2.id == pf_p2.id
 
-    player3 = pfdb.read_player_by_ign(ign="IGN NOT IN DB", session=session)
-    assert player3 is None
+    players = pfdb.read_players_by_ign(ign="IGN NOT IN DB", session=session)
+    assert players == []
 
+
+def test_read_players_by_ign_duplicate(pfdb, session, pf_p1, pf_p2, pf_p1v2):
+    pfdb.create_player(player=pf_p1, session=session)
+    pfdb.create_player(player=pf_p2, session=session)
+    pfdb.create_player(player=pf_p1v2, session=session)
+
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign, session=session)
+    assert len(players) == 2
+    ids = set([_.id for _ in players])
+    assert pf_p1.id in ids
+    assert pf_p1v2.id in ids
 
 def test_player_exists(pfdb, session, pf_p1, pf_p2):
     assert pfdb.player_exists(pf_player_id=pf_p1.id, session=session) == False

@@ -86,6 +86,17 @@ def pf_p3() -> Generator[PfPlayer, None, None]:
 
 
 @pytest.fixture
+def pf_p1v2() -> Generator[PfPlayer, None, None]:
+    player = PfPlayer(
+        id=4,
+        ign="IGN1",
+        account_created=datetime(2022, 2, 2, 1, 0, 0),
+        last_login=datetime(2022, 3, 1, 1, 0, 0),
+    )
+    yield player
+
+
+@pytest.fixture
 def stats_p1_1() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
         date = datetime(2023, 1, 1),

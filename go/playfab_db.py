@@ -56,10 +56,10 @@ class PlayfabDB:
         #     raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
 
 
-    def read_player_by_ign(self, ign: str, session: Session) -> PfPlayer:
+    def read_players_by_ign(self, ign: str, session: Session) -> List[PfPlayer]:
         logger.info(f"Reading PfPlayer with {ign = } from DB")
         statement = select(PfPlayer).where(PfPlayer.ign == ign)
-        result: PfPlayer = session.exec(statement).first()
+        result = [_ for _ in session.exec(statement)]
         return result
 
 

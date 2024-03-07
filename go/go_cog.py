@@ -72,17 +72,22 @@ class GoCog(commands.Cog):
                 msg = f'Could not create/read player from DB for user {player.name}'
                 raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
             
-            # check if the ign has alredy been set (discord_id has associated playfab player_id)
+            # check if the ign has already been set (discord_id has associated playfab player_id)
             if go_p.pf_player_id is not None:
                 pf_p = self.pfdb.read_player(pf_player_id=go_p.pf_player_id, session=session)
                 msg = f'IGN for {player.name} already set to = {pf_p.ign}'
                 raise DiscordUserError(msg)
 
             # lookup the playfab_player by ign
-            pf_p = self.pfdb.read_player_by_ign(ign=ign, session=session)
-            if pf_p == None:
+            pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
+            if not pf_players:
                 msg = f'Could not find a Population One account with IGN = "{ign}"'
                 raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
+            if len(pf_players) > 1:
+                msg = f'Found {len(pf_players)} players with IGN = "{ign}". Reach out to @GO_STOOOBE to help fix this.'
+                raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
+            
+            pf_p = pf_players[0]
 
             go_p.pf_player_id = pf_p.id
             session.add(go_p)
@@ -98,9 +103,20 @@ class GoCog(commands.Cog):
         
         try:
             self.do_set_ign(player=player, ign=ign)
-            msg = f'IGN for {player.name} set to "{ign}"'
-            logger.info(msg)
-            await interaction.response.send_message(msg) 
+            
+            with Session(self.engine) as session:
+                go_p = self.godb.read_player(discord_id=player.id, session=session)
+                msg = f'IGN for {player.name} set to "{ign}"'
+                
+                stats = go_p.pf_player.career_stats[-1]
+                msg += f'\n* Account created on {go_p.pf_player.account_created.date()}'                
+                msg += f'\n* Career games played = {stats.games}'
+                msg += f'\n* Career win rate = {int(100.0*stats.wins/stats.games)}%'
+                msg += f'\n* Career kills per game = {int(10.0*stats.kills/stats.games)/10.0}'
+                msg += f'\n* Career damage per game = {int(stats.damage/stats.games)}'
+                
+                logger.info(msg)
+                await interaction.response.send_message(msg) 
             
         except DiscordUserError as err:
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
