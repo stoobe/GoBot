@@ -61,8 +61,8 @@ def main ():
                 rating = GoRatings(pf_player_id=pf_player_id, season=args.season, rating_type=args.rating_type, go_rating=row.go_rating)
                 print(i, rating)
                 session.add(rating)
-                if i%100 == 0:
-                    session.commit()
+                # if i%100 == 0:
+                session.commit()
                 success_count += 1
                 
             print(f"Result {success_count = } {fail_count = }")
