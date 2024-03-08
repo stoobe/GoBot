@@ -43,7 +43,6 @@ def main ():
                 session.add(rating)
                 if i%100 == 0:
                     session.commit()
-                if i==101: break
             session.commit()
 
 if __name__ == '__main__':
