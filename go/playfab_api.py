@@ -8,7 +8,7 @@ import requests
 import json
 
 import _config
-from go.models import PfCareerStats
+from go.models import PfCareerStats, PfPlayer
 from go.logger import create_logger
 
 logger = create_logger(__name__)
@@ -40,7 +40,7 @@ class PlayfabApi:
 
         if response.status_code == 200:
             response_data = response.json()
-            logger.debug(f"run_request for {command = } succeeded.")
+            logger.debug(f"run_request for {command = } succeeded with response {json.dumps(response.json(),indent=3)}")
             return response
         else:
             logger.error(f"Error: {response.status_code} - {response.text}")
@@ -77,6 +77,40 @@ class PlayfabApi:
             skill=stat_name_to_val.get("PlayerSkill", None)
         )
         return stats
+
+
+    def get_player_from_account_info(self, player_id: int) -> PfPlayer:
+        try:
+            payload = {
+                'PlayFabId': as_playfab_id(player_id),
+                'InfoRequestParameters':{
+                        'GetPlayerProfile':True,
+                        'GetUserAccountInfo':False,
+                        'ProfileConstraints' : {
+                            'ShowLastLogin' : True,
+                            'ShowDisplayName' : True,
+                            'ShowCreated' : True,
+                            'ShowAvatarUrl' : True,
+                            },            
+                        },
+            }
+
+            response = self.run_request('GetPlayerCombinedInfo', payload)
+            response_data = response.json()
+            profile_info = response_data["data"]["InfoResultPayload"]["PlayerProfile"]
+            
+            pf_p = PfPlayer(
+                id = player_id,
+                ign = profile_info["DisplayName"],
+                account_created = parser.parse(profile_info["Created"]),
+                last_login = parser.parse(profile_info["LastLogin"]),
+                avatar_url= profile_info["AvatarUrl"],
+            )
+            return pf_p
+        
+        except Exception as e:
+            logger.error(e)
+            return None
 
 
     def login_to_playfab(self) -> None:
