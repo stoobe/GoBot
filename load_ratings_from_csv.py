@@ -57,6 +57,8 @@ def main ():
                         fail_count += 1
                         continue
                     session.add(pf_p)
+                    session.commit()
+                    
                 
                 rating = GoRatings(pf_player_id=pf_player_id, season=args.season, rating_type=args.rating_type, go_rating=row.go_rating)
                 print(i, rating)
