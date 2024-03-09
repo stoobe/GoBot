@@ -252,7 +252,7 @@ class GoCog(commands.Cog):
         logger.info(f"GoCog.signup names ({interaction.channel}, {team_name}, {get_name(player1)}, {player2 and get_name(player2)}, {player3 and get_name(player3)})")
         logger.info(f"GoCog.signup ids   ({interaction.channel_id}, {team_name}, {player1.id}, {player2 and player2.id}, {player3 and player3.id})")
 
-        date = datetime.date.today()
+        date = datetime.date(2024, 1, 1)
 
         players = [convert_user(player1)]
         players.append(convert_user(player2) if player2 else None)
