@@ -51,7 +51,6 @@ class GoCog(commands.Cog):
     # Above, we declare a command Group, in discord terms this is a parent command
     # We define it within the class scope (not an instance scope) so we can use it as a decorator.
     # This does have namespace caveats but i don't believe they're worth outlining in our needs.
-
     # @app_commands.command(name="top-command")
     # async def my_top_command(self, interaction: discord.Interaction) -> None:
     #   """ /top-command """
@@ -121,6 +120,39 @@ class GoCog(commands.Cog):
         except DiscordUserError as err:
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message) 
+
+
+    @go_group.command( 
+        description="Get the In Game Name for a user"
+        )
+    async def get_ign(self, 
+                    interaction: discord.Interaction, 
+                    user: discord.Member = None, 
+                    ):
+        
+        if user is None:
+            user = interaction.user
+            
+        player = convert_user(user)
+        logger.info(f"Running get_ign({player.name})")
+        
+        try:
+            with Session(self.engine) as session:
+                
+                go_p = self.godb.read_player(discord_id=player.id, session=session)
+                if go_p is not None:
+                    ign = go_p.pf_player.ign              
+                    msg = f'IGN for {player.name} set to "{ign}"'
+                else:
+                    msg = f'{player.name} is not registered with GoBot'
+                
+                logger.info(msg)
+                await interaction.response.send_message(msg) 
+                    
+        except DiscordUserError as err:
+            logger.warn(f"get_ign resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
+
 
 
 
@@ -297,7 +329,7 @@ class GoCog(commands.Cog):
         )
     async def sync(self, interaction: discord.Interaction):
         if interaction.user.id != _config.owner_id:
-            await interaction.response.send_message('You must be the owner to use this command!')
+            await interaction.response.send_message('You dont have permission to use this command!')
             return
 
         await self.bot.tree.sync(guild=MY_GUILD)
@@ -317,7 +349,7 @@ class GoCog(commands.Cog):
             ign: str
         ):
         if interaction.user.id != _config.owner_id:
-            await interaction.response.send_message('You must be the owner to use this command!')
+            await interaction.response.send_message('You dont have permission to use this command!')
             return
         
         player = convert_user(user)
