@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, time
 from typing import List, Optional
 from sqlalchemy import BigInteger, Column, ForeignKey
 
@@ -43,9 +43,11 @@ class GoSignup(SQLModel, table=True):
     
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
     session_date: date = Field(primary_key=True)
+    lobby_id: Optional[int] = Field(default=None, foreign_key="go_lobby.id")
 
     team: GoTeam = Relationship(back_populates="signups")
-
+    lobby: "GoLobby" = Relationship(back_populates="signups")
+    
 
 class GoRatings(SQLModel, table=True):
     __tablename__ = "go_ratings"
@@ -56,6 +58,23 @@ class GoRatings(SQLModel, table=True):
     go_rating: float
 
 
+class GoSchedule(SQLModel, table=True):
+    __tablename__ = "go_schedule"
+    
+    session_id: int = Field(sa_column=Column(BigInteger(), primary_key=True))
+    session_date: date = Field(unique=True)
+
+
+class GoLobby(SQLModel, table=True):
+    __tablename__ = "go_lobby"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_date: date = Field(unique=True)
+    host_did: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), default=None))
+    lobby_code: Optional[str] = Field(default=None)
+
+    signups : List["GoSignup"] = Relationship(back_populates="lobby")
+    host: GoPlayer = Relationship()
 
 
 class PfPlayer(SQLModel, table=True):

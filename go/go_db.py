@@ -5,9 +5,9 @@ from datetime import date as datetype
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Session, delete, func, select
 
-from go.exceptions import DataNotDeletedError, GoDbError, PlayerNotFoundError
+from go.exceptions import DataNotDeletedError, DiscordUserError, GoDbError, PlayerNotFoundError
 from go.logger import create_logger
-from go.models import GoPlayer, GoRoster, GoSignup, GoTeam
+from go.models import GoPlayer, GoRoster, GoSchedule, GoSignup, GoTeam
 
 
 
@@ -213,7 +213,7 @@ class GoDB:
         elif len(team_ids) == 1:
             team_id = team_ids.pop()
             statement = select(GoTeam).where(GoTeam.id == team_id)
-            team = session.exec(statement).first()
+            team = session.exec(statement).one()
             
             logger.info(f"Returning team with {team.id = }")
             return team
@@ -228,4 +228,33 @@ class GoDB:
         statement = select(GoTeam).where(GoTeam.team_name == team_name)
         team = session.exec(statement).first()
         return team
+        
+
+    def get_session_date(self, session_id, session:Session) -> datetype:
+        statement = select(GoSchedule).where(GoSchedule.session_id == session_id)
+        gosched = session.exec(statement).first()
+        if gosched is None:
+            return None
+        return gosched.session_date
+
+        
+    def set_session_date(self, session_id, session_date, session:Session):
+        if session_id is None:
+            raise ValueError("session_id cannot be None")
+        if session_date is None:
+            raise ValueError("session_date cannot be None")
+        
+        statement = select(GoSchedule).where(GoSchedule.session_id == session_id)
+        gosched = session.exec(statement).first()
+
+        if gosched is not None:
+            if gosched.session_date == session_date:
+                return
+            else:
+                gosched.session_date = session_date    
+        else: 
+            gosched = GoSchedule(session_id=session_id, session_date=session_date)
+
+        session.add(gosched)
+        session.commit()
         

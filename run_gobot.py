@@ -37,20 +37,8 @@ class MyBot(commands.Bot):
         logger.info(f"setup_hook start commands {[c.qualified_name for c in self.tree.walk_commands()]}")
 
         # # emergency resync, otherwise use /zadmin sync from Discord
-        # await self.tree.sync(guild=MY_GUILD)        
         # self.tree.copy_global_to(guild=MY_GUILD)
         # await self.tree.sync(guild=MY_GUILD)
-
-        # # how to remove commands
-        # logger.info(f"mybot1 {[c.qualified_name for c in self.tree.walk_commands()]}")
-        # await self.tree.sync()                
-        # self.tree.remove_command("admin sync")
-        # self.tree.remove_command("z sync")
-        # self.tree.remove_command("sync")
-        # self.tree.clear_commands(guild=None)
-        # await self.tree.sync()
-        # await self.tree.sync(guild=MY_GUILD)                
-        # logger.info(f"mybot2 {[c.qualified_name for c in self.tree.walk_commands()]}")
 
         logger.info(f"setup_hook end commands:   {[c.qualified_name for c in self.tree.walk_commands()]}")
             

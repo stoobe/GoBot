@@ -13,6 +13,9 @@ date3 = datetype(2023,1,3)
 date4 = datetype(2023,1,4)
 date5 = datetype(2023,1,5)
 date6 = datetype(2023,1,6)
+
+channel_id1 = 1111
+channel_id2 = 2222
     
 def test_create_and_read_player(godb, session, go_p1 : GoPlayer):
     function_start = datetime.now()
@@ -304,4 +307,20 @@ def test_signups_player_same_day_twice(godb, session, go_p1, go_p2):
         # try signing up a player for the same day on a different team
         # p1 is on both team1 and team2, so cannot signup for date1 again
         godb.add_signup(team=team2, date=date1, session=session)
+        
+
+
+
+def test_set_session_date(godb, session):
+
+    godb.set_session_date(session_id=channel_id1, session_date=date1, session=session)
+    assert(godb.get_session_date(channel_id1, session=session) == date1)
+    assert(godb.get_session_date(channel_id2, session=session) == None)
+    
+    godb.set_session_date(session_id=channel_id1, session_date=date1, session=session)
+    assert(godb.get_session_date(channel_id1, session=session) == date1)
+    assert(godb.get_session_date(channel_id2, session=session) == None)
+    
+    godb.set_session_date(session_id=channel_id1, session_date=date2, session=session)
+    assert(godb.get_session_date(channel_id1, session=session) == date2)
         

@@ -84,6 +84,16 @@ def test_set_ign_twice_error(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
         gocog.do_set_ign(player=du1, ign=pf_p1.ign)
 
 
+def test_set_ign_twice_error_second_user(gocog, godb, pfdb, session, go_p1, pf_p1, du1, du2):    
+    pfdb.create_player(player=pf_p1, session=session)
+    godb.create_player(go_player=go_p1, session=session)
+
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+
+    with pytest.raises(DiscordUserError):
+        gocog.do_set_ign(player=du2, ign=pf_p1.ign)
+
+
 def test_set_ign_doesnt_exist(gocog, godb, pfdb, session, pf_p1, du1):    
     pfdb.create_player(player=pf_p1, session=session)
 
@@ -232,7 +242,7 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
     assert 2 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
     
-    gocog_preload.do_cancel(player=du2, date=date1)
+    gocog_preload.do_cancel(player=du2, date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
@@ -242,6 +252,6 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
 def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
     gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_cancel(player=du3, date=date1)
+        gocog_preload.do_cancel(player=du3, date=date1, session=session)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_cancel(player=du1, date=date2)
+        gocog_preload.do_cancel(player=du1, date=date2, session=session)
