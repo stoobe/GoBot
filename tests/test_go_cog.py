@@ -115,13 +115,14 @@ def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):
     assert 0 == godb.signup_count(session=session)
     gocog.do_set_ign(player=du1, ign="IGN1")
     
-    team_id = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
+    signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
     assert 1 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 1 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
     
-    team = godb.read_team(team_id=team_id, session=session)
+    team = signup.team
+    # team = godb.read_team(team_id=team_id, session=session)
     assert team.team_name == "tname1"
     assert team.team_size == 1
     assert len(team.signups) == 1
@@ -134,13 +135,14 @@ def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2):
     gocog.do_set_ign(player=du1, ign=pf_p1.ign)
     gocog.do_set_ign(player=du2, ign=pf_p2.ign)
     
-    team_id = gocog.do_signup(players=[du1, du2], team_name="tname2", date=date1, session=session)
+    signup = gocog.do_signup(players=[du1, du2], team_name="tname2", date=date1, session=session)
     assert 2 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
     
-    team = godb.read_team(team_id=team_id, session=session)
+    team = signup.team
+    # team = godb.read_team(team_id=team_id, session=session)
     assert team.team_name == "tname2"
     assert team.team_size == 2
     assert len(team.signups) == 1
@@ -149,19 +151,20 @@ def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2):
     
 def test_signup_trio(gocog_preload, session, du1, du2, du3):
     godb = gocog_preload.godb
-    team_id = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
     
-    team = godb.read_team(team_id=team_id, session=session)
+    team = signup.team
+    # team = godb.read_team(team_id=team_id, session=session)
     assert team.team_name == "tname3"
     assert team.team_size == 3
     assert len(team.signups) == 1
     assert len(team.rosters) == 3
 
-    team_id = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date2, session=session)
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date2, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
@@ -194,7 +197,7 @@ def test_signup_missing_set_ign_fails(gocog, godb, pfdb, session, du1, pf_p1, du
     # gocog.do_set_ign(player=du3, ign=pf_p3.ign)
     
     with pytest.raises(DiscordUserError):
-        team_id = gocog.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
+        gocog.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
         
 
 def test_signup_dup_user_fails(gocog_preload, session, du1, du2, du3):

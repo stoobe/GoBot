@@ -14,7 +14,7 @@ import _config
 
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
-from go.models import GoPlayer, GoSchedule, GoTeam
+from go.models import GoPlayer, GoSchedule, GoSignup, GoTeam
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
@@ -162,7 +162,7 @@ class GoCog(commands.Cog):
 
 
 
-    def do_signup(self, players: List[DiscordUser], team_name: str, date: datetype, session: Session) -> int:
+    def do_signup(self, players: List[DiscordUser], team_name: str, date: datetype, session: Session) -> GoSignup:
 
         if not team_name:
             msg = f'Signup failed. Team name required.'
@@ -236,14 +236,14 @@ class GoCog(commands.Cog):
             raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
 
         try:
-            self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
+           signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
         except GoDbError as err:
             # godb.add_signup checks that the players aren't on a different team that day
             # convert that error to this one we expect to throw
             raise DiscordUserError(err.args[0])
         
         session.refresh(go_team_by_roster)
-        return go_team_by_roster.id
+        return signup
 
         
         
@@ -276,17 +276,17 @@ class GoCog(commands.Cog):
             if team_name:
                 team_name = team_name.strip()
                     
-            try:
-                team_id = self.do_signup(players=players, team_name=team_name, date=date, session=session)
-                
-                with Session(self.engine) as session:  
-                    team = self.godb.read_team(team_id=team_id, session=session)
+            try:            
+                signup = self.do_signup(players=players, team_name=team_name, date=date, session=session)
 
-                    igns = [r.player.pf_player.ign for r in team.rosters]
-                    msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
-                    msg += f'\nThis is signup #{len(team.signups)} for the team.'
-                    logger.info(msg)
-                    await interaction.response.send_message(msg)
+                team = signup.team
+                # team = self.godb.read_team(team_id=signup.team_id, session=session)
+
+                igns = [r.player.pf_player.ign for r in team.rosters]
+                msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+                msg += f'\nThis is signup #{len(team.signups)} for the team.'
+                logger.info(msg)
+                await interaction.response.send_message(msg)
                 
             except DiscordUserError as err:
                 logger.warn(f"signup resulted in error code {err.code}: {err.message}")

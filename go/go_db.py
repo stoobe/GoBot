@@ -130,7 +130,7 @@ class GoDB:
         return session.exec(statement).one()
         
         
-    def add_signup(self, team: GoTeam, date: datetype, session: Session):
+    def add_signup(self, team: GoTeam, date: datetype, session: Session) -> GoSignup:
         logger.info("Adding new signup to DB")
         
         current_signups = self.read_player_signups(date=date, session=session)
@@ -144,7 +144,8 @@ class GoDB:
         signup = GoSignup(team_id=team.id, session_date=date)
         session.add(signup)
         session.commit()        
-
+        return signup
+    
    
     def read_player_signups(self,
                      session: Session, 
