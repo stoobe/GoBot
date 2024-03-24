@@ -162,7 +162,7 @@ class GoCog(commands.Cog):
 
 
 
-    def do_signup(self, players: List[DiscordUser], team_name: str, date: datetype) -> int:
+    def do_signup(self, players: List[DiscordUser], team_name: str, date: datetype, session: Session) -> int:
 
         if not team_name:
             msg = f'Signup failed. Team name required.'
@@ -176,76 +176,74 @@ class GoCog(commands.Cog):
                 raise DiscordUserError(msg)
             if p is None:
                 none_seen_at = i
-
-        with Session(self.engine) as session:  
-            
-            players = [p for p in players if p is not None]
-            if len(players) == 0:
-                msg = f'Signup failed. No players specified.'
-                raise DiscordUserError(msg)
-            
-            go_players = []
-            discord_ids = set()
-            
-            for player in players:
-                discord_ids.add(player.id)
-                go_player = self.godb.read_player(discord_id=player.id, session=session)
-                go_players.append(go_player)
-                if go_player is None or go_player.pf_player is None:
-                    msg = f'Signup failed. Player {player.name} needs run `/go set_ign`.'
-                    raise DiscordUserError(msg)
-
-            if len(discord_ids) < len(players):
-                msg = f'Signup failed. The same player can not be on one team twice.'
+        
+        players = [p for p in players if p is not None]
+        if len(players) == 0:
+            msg = f'Signup failed. No players specified.'
+            raise DiscordUserError(msg)
+        
+        go_players = []
+        discord_ids = set()
+        
+        for player in players:
+            discord_ids.add(player.id)
+            go_player = self.godb.read_player(discord_id=player.id, session=session)
+            go_players.append(go_player)
+            if go_player is None or go_player.pf_player is None:
+                msg = f'Signup failed. Player {player.name} needs run `/go set_ign`.'
                 raise DiscordUserError(msg)
 
-            go_team_by_roster = self.godb.read_team_with_roster(discord_ids=discord_ids, session=session)        
-            
-            # make sure if our team already exists the name is the same
-            if go_team_by_roster and go_team_by_roster.team_name != team_name:
-                msg = f'Signup failed. Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
+        if len(discord_ids) < len(players):
+            msg = f'Signup failed. The same player can not be on one team twice.'
+            raise DiscordUserError(msg)
+
+        go_team_by_roster = self.godb.read_team_with_roster(discord_ids=discord_ids, session=session)        
+        
+        # make sure if our team already exists the name is the same
+        if go_team_by_roster and go_team_by_roster.team_name != team_name:
+            msg = f'Signup failed. Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
+            raise DiscordUserError(msg)
+        
+        # read_team_with_name can handle team_name=None
+        go_team_by_name = self.godb.read_team_with_name(team_name=team_name, session=session) 
+        
+        # if the team_name already exists make sure it's for our team
+        if go_team_by_name:
+            if not go_team_by_roster or go_team_by_roster.id != go_team_by_name.id:
+                igns = [r.player.pf_player.ign for r in go_team_by_name.rosters]
+                msg = f'Signup failed. Team name "{go_team_by_name.team_name}" is already taken by players {", ".join(igns)}.'
                 raise DiscordUserError(msg)
-            
-            # read_team_with_name can handle team_name=None
-            go_team_by_name = self.godb.read_team_with_name(team_name=team_name, session=session) 
-            
-            # if the team_name already exists make sure it's for our team
-            if go_team_by_name:
-                if not go_team_by_roster or go_team_by_roster.id != go_team_by_name.id:
-                    igns = [r.player.pf_player.ign for r in go_team_by_name.rosters]
-                    msg = f'Signup failed. Team name "{go_team_by_name.team_name}" is already taken by players {", ".join(igns)}.'
-                    raise DiscordUserError(msg)
-                         
-            # if it's an existing team
-            if go_team_by_roster:
-                # already signed up for today?
-                signup_dates = [_.session_date for _ in go_team_by_roster.signups]
-                if date in signup_dates:
-                    msg = f'Team "{team_name}" is already signed up for {date}.'
-                    raise DiscordUserError(msg)
-                            
-                # signed up for too many dates?
-                if len(signup_dates) >= 4:
-                    msg = f'Signup failed. Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).'
-                    raise DiscordUserError(msg)
+                        
+        # if it's an existing team
+        if go_team_by_roster:
+            # already signed up for today?
+            signup_dates = [_.session_date for _ in go_team_by_roster.signups]
+            if date in signup_dates:
+                msg = f'Team "{team_name}" is already signed up for {date}.'
+                raise DiscordUserError(msg)
+                        
+            # signed up for too many dates?
+            if len(signup_dates) >= 4:
+                msg = f'Signup failed. Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).'
+                raise DiscordUserError(msg)
 
-            # if it's a new team
-            if go_team_by_roster is None:
-                go_team_by_roster = self.godb.create_team(team_name=team_name, go_players=go_players, session=session)
-                
-            if go_team_by_roster is None:
-                msg = f'Could not create team in DB'
-                raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
-
-            try:
-                self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
-            except GoDbError as err:
-                # godb.add_signup checks that the players aren't on a different team that day
-                # convert that error to this one we expect to throw
-                raise DiscordUserError(err.args[0])
+        # if it's a new team
+        if go_team_by_roster is None:
+            go_team_by_roster = self.godb.create_team(team_name=team_name, go_players=go_players, session=session)
             
-            session.refresh(go_team_by_roster)
-            return go_team_by_roster.id
+        if go_team_by_roster is None:
+            msg = f'Could not create team in DB'
+            raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+
+        try:
+            self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
+        except GoDbError as err:
+            # godb.add_signup checks that the players aren't on a different team that day
+            # convert that error to this one we expect to throw
+            raise DiscordUserError(err.args[0])
+        
+        session.refresh(go_team_by_roster)
+        return go_team_by_roster.id
 
         
         
@@ -261,36 +259,38 @@ class GoCog(commands.Cog):
         logger.info("")
         logger.info(f"GoCog.signup names ({interaction.channel}, {team_name}, {get_name(player1)}, {player2 and get_name(player2)}, {player3 and get_name(player3)})")
         logger.info(f"GoCog.signup ids   ({interaction.channel_id}, {team_name}, {player1.id}, {player2 and player2.id}, {player3 and player3.id})")
-
-        date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
-        if date is None:
-            msg = "Signup failed -- This channel hasn't been assigned as session date."
-            logger.warn(msg)
-            await interaction.response.send_message(msg)
-            return
-
-        players = [convert_user(player1)]
-        players.append(convert_user(player2) if player2 else None)
-        players.append(convert_user(player3) if player3 else None)
         
-        if team_name:
-            team_name = team_name.strip()
-                
-        try:
-            team_id = self.do_signup(players=players, team_name=team_name, date=date)
+        with Session(self.engine) as session:  
             
-            with Session(self.engine) as session:  
-                team = self.godb.read_team(team_id=team_id, session=session)
-
-                igns = [r.player.pf_player.ign for r in team.rosters]
-                msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
-                msg += f'\nThis is signup #{len(team.signups)} for the team.'
-                logger.info(msg)
+            date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
+            if date is None:
+                msg = "Signup failed -- This channel hasn't been assigned as session date."
+                logger.warn(msg)
                 await interaction.response.send_message(msg)
+                return
+
+            players = [convert_user(player1)]
+            players.append(convert_user(player2) if player2 else None)
+            players.append(convert_user(player3) if player3 else None)
             
-        except DiscordUserError as err:
-            logger.warn(f"signup resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message) 
+            if team_name:
+                team_name = team_name.strip()
+                    
+            try:
+                team_id = self.do_signup(players=players, team_name=team_name, date=date, session=session)
+                
+                with Session(self.engine) as session:  
+                    team = self.godb.read_team(team_id=team_id, session=session)
+
+                    igns = [r.player.pf_player.ign for r in team.rosters]
+                    msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+                    msg += f'\nThis is signup #{len(team.signups)} for the team.'
+                    logger.info(msg)
+                    await interaction.response.send_message(msg)
+                
+            except DiscordUserError as err:
+                logger.warn(f"signup resulted in error code {err.code}: {err.message}")
+                await interaction.response.send_message(err.message) 
         
 
     def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoTeamPlayerSignup:
@@ -326,16 +326,16 @@ class GoCog(commands.Cog):
         logger.info(f"GoCog.cancel names ({interaction.channel}, {player.name})")
         logger.info(f"GoCog.cancel ids   ({interaction.channel_id}, {player.id})")
 
-        date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
-        if date is None:
-            msg = "Cancel failed -- This channel hasn't been assigned as session date."
-            logger.warn(msg)
-            await interaction.response.send_message(msg)
-            return
-            
-        try:
-            with Session(self.engine) as session:  
-            
+        with Session(self.engine) as session:  
+
+            date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
+            if date is None:
+                msg = "Cancel failed -- This channel hasn't been assigned as session date."
+                logger.warn(msg)
+                await interaction.response.send_message(msg)
+                return
+                
+            try:            
                 tpsignup = self.do_cancel(player=player, date=date, session=session)
                 
                 msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
@@ -343,10 +343,10 @@ class GoCog(commands.Cog):
                 logger.info(msg)
                 await interaction.response.send_message(msg)
             
-        except DiscordUserError as err:
-            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message) 
-    
+            except DiscordUserError as err:
+                logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
+                await interaction.response.send_message(err.message) 
+        
 
     @admin_group.command( 
         description="Admin tool for syncing commands"
