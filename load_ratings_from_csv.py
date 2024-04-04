@@ -21,7 +21,7 @@ def main ():
     parser = argparse.ArgumentParser(description="sample argument parser")
     parser.add_argument("--season", type=str, required=True, help='something like "GOP1 S10"')
     parser.add_argument("--rating_type", type=str, required=True, help='something like "combined"')
-    parser.add_argument("--file", type=str, required=True, help='csv file, requires fields pfid, ign, and go_rating"')
+    parser.add_argument("--file", type=str, required=True, help='csv file, requires field pfid"')
     parser.add_argument("--max", type=int, default=None, required=False)
     args = parser.parse_args()
 
