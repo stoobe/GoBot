@@ -76,7 +76,7 @@ class GoCog(commands.Cog):
             # check if the ign has already been set (discord_id has associated playfab player_id)
             if go_p.pf_player_id is not None:
                 pf_p = self.pfdb.read_player(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} already set to = {pf_p.ign}'
+                msg = f'IGN for {player.name} already set to {pf_p.ign}'
                 raise DiscordUserError(msg)
 
             # lookup the playfab_player by ign

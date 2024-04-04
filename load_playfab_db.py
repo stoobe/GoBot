@@ -92,9 +92,12 @@ def main():
                     pass
                 else:
                     logger.info(f"Getting stats for: {player.ign}")
-                    stats = pfapi.get_player_career_stats(player_id=player.id)
-                    session.add(stats)
-                    session.commit()          
+                    try:
+                        stats = pfapi.get_player_career_stats(player_id=player.id)
+                        session.add(stats)
+                        session.commit()          
+                    except AttributeError as e:
+                        logger.error(f"get_player_career_stats failed {e}")
 
 
 if __name__=='__main__':

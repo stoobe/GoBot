@@ -43,7 +43,7 @@ class PlayfabApi:
             logger.debug(f"run_request for {command = } succeeded with response {json.dumps(response.json(),indent=3)}")
             return response
         else:
-            logger.error(f"Error: {response.status_code} - {response.text}")
+            logger.error(f"Error: run_request for {command = } failed with response {response.status_code} - {response.text}")
             return None
 
 
