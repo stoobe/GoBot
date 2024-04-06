@@ -23,6 +23,7 @@ class GoTeam(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     team_name: str = Field(unique=True, index=True)
     team_size: int
+    team_rating: Optional[float] = Field(default=None)
 
     rosters : List["GoRoster"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"})
     signups : List["GoSignup"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"})
@@ -44,6 +45,7 @@ class GoSignup(SQLModel, table=True):
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
     session_date: date = Field(primary_key=True)
     lobby_id: Optional[int] = Field(default=None, foreign_key="go_lobby.id")
+    signup_time: datetime = Field(default=datetime.now())
 
     team: GoTeam = Relationship(back_populates="signups")
     lobby: "GoLobby" = Relationship(back_populates="signups")
@@ -108,6 +110,33 @@ class PfCareerStats(SQLModel, table=True):
     skill: Optional[int] = Field(nullable=True)
 
     player: PfPlayer = Relationship(back_populates="career_stats")
+    
+    
+    def calc_rating(self) -> float:
+        if self.games == 0:
+            return 0.0
+        return 100.0 * (self.kills + self.damage/210.0 + 3.1*self.wins) / self.games
+    
+    
+    def calc_difference(self, previous):
+        if (previous.games > self.games or previous.wins > self.wins 
+            or previous.kills > self.kills or previous.damage > self.damage):
+            raise Exception("Subtracting stats with more games will end up with negative values")
+        if self.pf_player_id != previous.pf_player_id:
+            raise Exception(f"Subtracting stats from different players {self.pf_player_id} and {previous.pf_player_id}")
+            
+        diff = PfCareerStats(date=self.date,
+                      pf_player_id=self.pf_player_id,
+                      games=self.games - previous.games,
+                      wins=self.wins - previous.wins,
+                      kills=self.kills - previous.kills,
+                      damage=self.damage - previous.damage,
+                      mmr=self.mmr,
+                      skill=self.skill,
+                      )
+        return diff
+            
+        
 
 
 class PfIgnHistory(SQLModel, table=True):

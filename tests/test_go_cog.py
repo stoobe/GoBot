@@ -10,6 +10,18 @@ date3 = datetype(year=2022, month=1, day=3)
 date4 = datetype(year=2022, month=1, day=4)
 date5 = datetype(year=2022, month=1, day=5)
 
+
+def test_get_rating_default(godb, pfdb, gocog, session, pf_p1, stats_p1_1):
+    pfdb.create_player(player=pf_p1, session=session)
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    
+    go_rating = gocog.set_rating_if_needed(pf_player_id=pf_p1.id, session=session)
+    assert go_rating == stats_p1_1.calc_rating()
+
+    go_rating2 = godb.get_official_rating(pf_player_id=pf_p1.id, session=session)
+    assert go_rating == go_rating2
+    
+
 def test_connect_go_and_pf_players(godb, pfdb, session, go_p1, go_p2, pf_p1, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
@@ -32,7 +44,7 @@ def test_connect_go_and_pf_players(godb, pfdb, session, go_p1, go_p2, pf_p1, pf_
     # refresh or commit needed to sync go_p1.pf_player_id with go_p1.pf_player
     session.refresh(go_p1)
     assert go_p1.pf_player_id == pf_p1.id
-    
+
 
 def test_do_set_ign1(gocog, godb, pfdb, session, go_p1, pf_p1, du1):    
     pfdb.create_player(player=pf_p1, session=session)    
@@ -258,3 +270,4 @@ def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
         gocog_preload.do_cancel(player=du3, date=date1, session=session)
     with pytest.raises(DiscordUserError):
         gocog_preload.do_cancel(player=du1, date=date2, session=session)
+

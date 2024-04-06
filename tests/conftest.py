@@ -104,20 +104,7 @@ def stats_p1_1() -> Generator[PfCareerStats, None, None]:
         games=10,
         wins=5,
         kills=7,
-        damage=500
-    )
-    yield stats
-
-
-@pytest.fixture
-def stats_p1_1() -> Generator[PfCareerStats, None, None]:
-    stats = PfCareerStats(
-        date = datetime(2023, 1, 1),
-        pf_player_id=1,
-        games=10,
-        wins=5,
-        kills=7,
-        damage=500,
+        damage=2000,
     )
     yield stats
 
@@ -128,12 +115,51 @@ def stats_p1_2() -> Generator[PfCareerStats, None, None]:
         date = datetime(2023, 2, 1),
         pf_player_id=1,
         games=30,
-        wins=10,
-        kills=14,
-        damage=1000,
+        wins=20,
+        kills=25,
+        damage=10000,
     )
     yield stats
 
+
+
+@pytest.fixture
+def stats_p1_3() -> Generator[PfCareerStats, None, None]:
+    stats = PfCareerStats(
+        date = datetime(2023, 4, 1),
+        pf_player_id=1,
+        games=530,
+        wins=520,
+        kills=525,
+        damage=60000,
+    )
+    yield stats
+
+
+@pytest.fixture
+def stats_p1_4() -> Generator[PfCareerStats, None, None]:
+    stats = PfCareerStats(
+        date = datetime(2023, 4, 7),
+        pf_player_id=1,
+        games=540,
+        wins=530,
+        kills=545,
+        damage=61000,
+    )
+    yield stats
+
+
+@pytest.fixture
+def stats_p1_zeros() -> Generator[PfCareerStats, None, None]:
+    stats = PfCareerStats(
+        date = datetime(2022, 1, 1),
+        pf_player_id=1,
+        games=0,
+        wins=0,
+        kills=0,
+        damage=0,
+    )
+    yield stats
 
 @pytest.fixture
 def stats_p2_1() -> Generator[PfCareerStats, None, None]:
@@ -157,6 +183,18 @@ def stats_p2_2() -> Generator[PfCareerStats, None, None]:
         wins=100,
         kills=140,
         damage=10000,
+    )
+    yield stats
+
+@pytest.fixture
+def stats_p2_3() -> Generator[PfCareerStats, None, None]:
+    stats = PfCareerStats(
+        date = datetime(2023, 6, 1),
+        pf_player_id=2,
+        games=450,
+        wins=200,
+        kills=300,
+        damage=30000,
     )
     yield stats
 

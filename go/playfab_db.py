@@ -1,12 +1,12 @@
 import os
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlmodel import SQLModel, Session, delete, func, select
 from go.exceptions import DataNotDeletedError, PlayerNotFoundError
 from go.logger import create_logger
 
 from go.models import PfCareerStats, PfIgnHistory, PfPlayer
-
+import _config
 
 logger = create_logger(__name__)
 
@@ -14,7 +14,6 @@ logger = create_logger(__name__)
 
 class PlayfabDB:
     
-
     def __init__(self, engine):
         self.engine = engine
 
@@ -178,3 +177,41 @@ class PlayfabDB:
     def ign_history_count(self, session):
         statement = select(func.count(PfIgnHistory.ign))
         return session.exec(statement).one()
+
+
+    def calc_rating_from_stats(self, pf_player_id, session: Session, snapshot_date: datetime=None) -> float:
+        if snapshot_date is None:
+            snapshot_date = _config.go_rating_snapshot_date
+        
+        statement = select(PfCareerStats).where(PfCareerStats.pf_player_id == pf_player_id)
+        statement = statement.where(PfCareerStats.date <= snapshot_date).order_by(PfCareerStats.date.desc())
+        most_recent = None
+        previous_snapshop = None
+        for rating in session.exec(statement):
+            if most_recent is None:
+                most_recent = rating
+            else:
+                # if there have been at least 100 games played between rating and most_recenet
+                # then we can use this rating
+                if most_recent.games - rating.games >=100:
+                    previous_snapshop = rating
+                    
+                # if we've accumulated over 500 games that's enough
+                if most_recent.games - rating.games >= 500:
+                    break
+                # if we've gone back over 3 months we don't want to go back farther
+                if snapshot_date - rating.date >= timedelta(days=96):
+                    break
+                
+        if most_recent is None:
+            return None
+        
+        if previous_snapshop is None:
+            return most_recent.calc_rating()
+        
+        assert most_recent.games >= 100 + previous_snapshop.games
+        diff = most_recent.calc_difference(previous_snapshop)
+        return diff.calc_rating()
+        
+        
+        

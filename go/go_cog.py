@@ -14,7 +14,7 @@ import _config
 
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
-from go.models import GoPlayer, GoSchedule, GoSignup, GoTeam
+from go.models import GoPlayer, GoRatings, GoSchedule, GoSignup, GoTeam
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
@@ -59,6 +59,30 @@ class GoCog(commands.Cog):
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
 
+    def set_rating_if_needed(self, pf_player_id, session) -> float:
+        
+        # make sure the player has a rating
+        # if not pull one in from recent career stats
+        go_rating = self.godb.get_official_rating(pf_player_id=pf_player_id, session=session)
+        
+        if go_rating is None:
+            go_rating = self.pfdb.calc_rating_from_stats(pf_player_id=pf_player_id, session=session)
+            
+            if go_rating is None:
+                logger.error(f"In get_rating_default -- calc_rating_from_stats failed for id {pf_player_id}")
+                return None
+            else:
+                official_rating = GoRatings(pf_player_id=pf_player_id,
+                                            season=_config.go_season,
+                                            rating_type='official',
+                                            go_rating=go_rating)
+                logger.info(f"In get_rating_default -- setting go_rating for {pf_player_id} to {go_rating:,.2f} from career stats")
+                session.add(official_rating)
+                session.commit()
+                
+        return go_rating
+
+
     def do_set_ign(self, player: DiscordUser, ign: str, session: Session) -> GoPlayer:
     
         # if GoPlayer doesn't exist create it
@@ -95,8 +119,10 @@ class GoCog(commands.Cog):
 
         go_p.pf_player_id = pf_p.id
         session.add(go_p)
+
         session.commit()
         return go_p
+
 
     @go_group.command( 
         description="Set your In Game Name"
@@ -108,10 +134,15 @@ class GoCog(commands.Cog):
         try:
             with Session(self.engine) as session:
 
-                go_p = self.do_set_ign(player=player, ign=ign, session=session)            
-                # go_p = self.godb.read_player(discord_id=player.id, session=session)
+                go_p = self.do_set_ign(player=player, ign=ign, session=session)     
+                                                
+                go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
+                if go_rating is None:
+                    msg = f'Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this.'
+                    raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+                       
                 go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating}'
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.2f}'
 
                 stats = go_p.pf_player.career_stats[-1]
                 msg += f'\n* Account created on {go_p.pf_player.account_created.date()}'                
@@ -441,8 +472,13 @@ class GoCog(commands.Cog):
             with Session(self.engine) as session:
                 
                 go_p = self.do_set_ign(player=player, ign=ign, session=session)
-                go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating}'
+                         
+                go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
+                if go_rating is None:
+                    msg = f'Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this.'
+                    raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+                                       
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.2f}'
                 logger.info(msg)
                 await interaction.response.send_message(msg) 
             

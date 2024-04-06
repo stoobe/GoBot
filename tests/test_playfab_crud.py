@@ -397,3 +397,90 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     assert player.ign_history[2].ign == "IGN2"
     assert player.ign_history[3].ign == "IGN3"         
     assert player.ign_history[4].ign == orig_ign    
+
+
+def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2,stats_p1_zeros, stats_p2_1):
+
+    pfdb.create_player(player=pf_p1, session=session)
+    pfdb.create_player(player=pf_p2, session=session)
+
+    pfdb.add_career_stats(stats=stats_p2_1, session=session)
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    pfdb.add_career_stats(stats=stats_p1_2, session=session)
+    pfdb.add_career_stats(stats=stats_p1_zeros, session=session)
+    
+    assert stats_p1_zeros.calc_rating() == 0
+    assert abs(stats_p1_1.calc_rating() - 320.2380952381) < 1e-8
+    assert abs(stats_p1_2.calc_rating() - 448.7301587301) < 1e-8
+    
+    diff_1_0 = stats_p1_1.calc_difference(stats_p1_zeros)
+    diff_2_0 = stats_p1_2.calc_difference(stats_p1_zeros)
+    diff_2_1 = stats_p1_2.calc_difference(stats_p1_1)
+    
+    assert abs(diff_1_0.calc_rating() - 320.2380952381) < 1e-8
+    assert abs(diff_2_0.calc_rating() - 448.7301587301) < 1e-8
+    assert abs(diff_2_1.calc_rating() - 512.9761904762) < 1e-8
+    
+    diff_1_1 = stats_p1_1.calc_difference(stats_p1_1)
+    assert diff_1_1.calc_rating() == 0
+
+    # test subtracting stats with too many games
+    with pytest.raises(Exception):
+        diff_1_2 = stats_p1_1.calc_difference(stats_p1_2)
+
+    # test subtracting stats from different players
+    with pytest.raises(Exception):
+        diff_p2_p1 = stats_p2_1.calc_difference(stats_p1_zeros)
+
+    
+
+
+def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2, 
+                                stats_p1_1, stats_p1_2, stats_p1_3, stats_p1_4, stats_p1_zeros, 
+                                stats_p2_1, stats_p2_2, stats_p2_3):
+
+    pfdb.create_player(player=pf_p1, session=session)
+    pfdb.create_player(player=pf_p2, session=session)
+
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    pfdb.add_career_stats(stats=stats_p1_2, session=session)
+    pfdb.add_career_stats(stats=stats_p1_3, session=session)
+    pfdb.add_career_stats(stats=stats_p1_4, session=session)
+    pfdb.add_career_stats(stats=stats_p1_zeros, session=session)
+
+    pfdb.add_career_stats(stats=stats_p2_1, session=session)
+    pfdb.add_career_stats(stats=stats_p2_2, session=session)
+    pfdb.add_career_stats(stats=stats_p2_3, session=session)
+    
+    diff_2_1 = stats_p1_2.calc_difference(stats_p1_1)
+    diff_3_2 = stats_p1_3.calc_difference(stats_p1_2)
+    diff_4_2 = stats_p1_4.calc_difference(stats_p1_2)
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_1.date, session=session)
+    assert rating ==  stats_p1_1.calc_rating()
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_2.date, session=session)
+    assert rating ==  stats_p1_2.calc_rating()
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_3.date, session=session)
+    assert rating ==  diff_3_2.calc_rating()
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_4.date, session=session)
+    assert rating ==  diff_4_2.calc_rating()
+
+    ### Player 2:
+
+    diff_2_1 = stats_p2_2.calc_difference(stats_p2_1)
+    diff_3_2 = stats_p2_3.calc_difference(stats_p2_2)
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_2.date, session=session)
+    assert rating ==  diff_2_1.calc_rating()
+
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_3.date, session=session)
+    assert rating ==  diff_3_2.calc_rating()
+
+    ## Missing Player
+        
+    rating = pfdb.calc_rating_from_stats(pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
+    assert rating is None
+
