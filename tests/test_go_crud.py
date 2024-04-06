@@ -5,7 +5,9 @@ import pytest
 
 from go.exceptions import GoDbError, PlayerNotFoundError
 from go.go_db import GoTeamPlayerSignup
-from go.models import GoPlayer
+from go.models import GoPlayer, GoRatings
+
+import _config
 
 date1 = datetype(2023,1,1)
 date2 = datetype(2023,1,2)
@@ -324,3 +326,24 @@ def test_set_session_date(godb, session):
     godb.set_session_date(session_id=channel_id1, session_date=date2, session=session)
     assert(godb.get_session_date(channel_id1, session=session) == date2)
         
+
+
+def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
+    pfdb.create_player(player=pf_p1, session=session)
+    go_p1.pf_player_id  = pf_p1.id
+    godb.create_player(go_player=go_p1, session=session)
+
+    session.refresh(go_p1)
+    session.refresh(pf_p1)
+    
+    rating1 = GoRatings(pf_player_id = pf_p1.id,
+                        season=_config.go_season,
+                        rating_type='official',
+                        go_rating=1234.5
+                        )
+    print('rating1',rating1)
+    session.add(rating1)
+    session.commit()
+    
+    go_rating = godb.get_official_rating(pf_player_id=pf_p1.id, session=session)
+    assert go_rating == 1234.5

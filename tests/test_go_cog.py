@@ -41,7 +41,7 @@ def test_do_set_ign1(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
     assert go_p1.pf_player is None
     assert pf_p1.go_player is None
 
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
     session.refresh(pf_p1)    
     assert pf_p1.go_player.discord_id == go_p1.discord_id    
@@ -61,7 +61,7 @@ def test_do_set_ign_new_go_player(gocog, godb, pfdb, session, pf_p1, du1):
     # playfab ign info to point to
     pfdb.create_player(player=pf_p1, session=session)
     
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
     go_p = godb.read_player(discord_id=du1.id, session=session)
     assert go_p is not None
@@ -78,27 +78,27 @@ def test_set_ign_twice_error(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
     pfdb.create_player(player=pf_p1, session=session)
     godb.create_player(go_player=go_p1, session=session)
 
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+        gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
 
 def test_set_ign_twice_error_second_user(gocog, godb, pfdb, session, go_p1, pf_p1, du1, du2):    
     pfdb.create_player(player=pf_p1, session=session)
     godb.create_player(go_player=go_p1, session=session)
 
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog.do_set_ign(player=du2, ign=pf_p1.ign)
+        gocog.do_set_ign(player=du2, ign=pf_p1.ign, session=session)
 
 
 def test_set_ign_doesnt_exist(gocog, godb, pfdb, session, pf_p1, du1):    
     pfdb.create_player(player=pf_p1, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog.do_set_ign(player=du1, ign="IGN DOESNT EXIST")
+        gocog.do_set_ign(player=du1, ign="IGN DOESNT EXIST", session=session)
 
 
 def test_set_ign_duplicate_ign(gocog, godb, pfdb, session, pf_p1, du1, pf_p1v2):    
@@ -106,14 +106,14 @@ def test_set_ign_duplicate_ign(gocog, godb, pfdb, session, pf_p1, du1, pf_p1v2):
     pfdb.create_player(player=pf_p1v2, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog.do_set_ign(player=du1, ign=pf_p1.ign)
+        gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
 
 def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):
     pfdb.create_player(player=pf_p1, session=session)
 
     assert 0 == godb.signup_count(session=session)
-    gocog.do_set_ign(player=du1, ign="IGN1")
+    gocog.do_set_ign(player=du1, ign="IGN1", session=session)
     
     signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
     assert 1 == godb.player_count(session=session)
@@ -132,8 +132,8 @@ def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):
 def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
-    gocog.do_set_ign(player=du2, ign=pf_p2.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
+    gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
     
     signup = gocog.do_signup(players=[du1, du2], team_name="tname2", date=date1, session=session)
     assert 2 == godb.player_count(session=session)
@@ -192,9 +192,9 @@ def test_signup_missing_set_ign_fails(gocog, godb, pfdb, session, du1, pf_p1, du
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
     pfdb.create_player(player=pf_p3, session=session)
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
-    gocog.do_set_ign(player=du2, ign=pf_p2.ign)
-    # gocog.do_set_ign(player=du3, ign=pf_p3.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
+    gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
+    # gocog.do_set_ign(player=du3, ign=pf_p3.ign, session=session)
     
     with pytest.raises(DiscordUserError):
         gocog.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)

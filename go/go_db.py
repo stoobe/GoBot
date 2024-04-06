@@ -7,8 +7,9 @@ from sqlmodel import SQLModel, Session, delete, func, select
 
 from go.exceptions import DataNotDeletedError, DiscordUserError, GoDbError, PlayerNotFoundError
 from go.logger import create_logger
-from go.models import GoPlayer, GoRoster, GoSchedule, GoSignup, GoTeam
+from go.models import GoPlayer, GoRatings, GoRoster, GoSchedule, GoSignup, GoTeam
 
+import _config
 
 
 # filename = os.path.splitext(os.path.basename(__file__))[0]
@@ -258,4 +259,14 @@ class GoDB:
 
         session.add(gosched)
         session.commit()
-        
+    
+    
+    def get_official_rating(self, pf_player_id, session:Session) -> float:
+        statement = select(GoRatings).where(GoRatings.rating_type == 'official')
+        statement = statement.where(GoRatings.season == _config.go_season)
+        statement = statement.where(GoRatings.pf_player_id == pf_player_id)
+        print('statement',statement)
+        rating = session.exec(statement).first()
+        if rating is None:
+            return None
+        return rating.go_rating

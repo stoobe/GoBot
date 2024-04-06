@@ -59,45 +59,44 @@ class GoCog(commands.Cog):
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
 
-    def do_set_ign(self, player: DiscordUser, ign: str):
+    def do_set_ign(self, player: DiscordUser, ign: str, session: Session) -> GoPlayer:
+    
+        # if GoPlayer doesn't exist create it
+        if not self.godb.player_exists(discord_id=player.id, session=session): 
+            go_p = GoPlayer(discord_id=player.id, discord_name=player.name)
+            self.godb.create_player(go_player=go_p, session=session)
+            
+        go_p = self.godb.read_player(discord_id=player.id, session=session)
         
-        with Session(self.engine) as session:
-            # if GoPlayer doesn't exist create it
-            if not self.godb.player_exists(discord_id=player.id, session=session): 
-                go_p = GoPlayer(discord_id=player.id, discord_name=player.name)
-                self.godb.create_player(go_player=go_p, session=session)
-                
-            go_p = self.godb.read_player(discord_id=player.id, session=session)
-            
-            if go_p is None:
-                msg = f'Could not create/read player from DB for user {player.name}'
-                raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
-            
-            # check if the ign has already been set (discord_id has associated playfab player_id)
-            if go_p.pf_player_id is not None:
-                pf_p = self.pfdb.read_player(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} already set to {pf_p.ign}'
-                raise DiscordUserError(msg)
+        if go_p is None:
+            msg = f'Could not create/read player from DB for user {player.name}'
+            raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+        
+        # check if the ign has already been set (discord_id has associated playfab player_id)
+        if go_p.pf_player_id is not None:
+            pf_p = self.pfdb.read_player(pf_player_id=go_p.pf_player_id, session=session)
+            msg = f'IGN for {player.name} already set to {pf_p.ign}'
+            raise DiscordUserError(msg)
 
-            # lookup the playfab_player by ign
-            pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
-            if not pf_players:
-                msg = f'Could not find a Population One account with IGN = "{ign}"'
-                raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
-            if len(pf_players) > 1:
-                msg = f'Found {len(pf_players)} players with IGN = "{ign}". Reach out to @GO_STOOOBE to help fix this.'
-                raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
-            
-            pf_p = pf_players[0]
-            
-            if pf_p.go_player is not None:
-                msg = f'This IGN is allready associated with Discord user = "{pf_p.go_player.discord_name}"'
-                raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
+        # lookup the playfab_player by ign
+        pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
+        if not pf_players:
+            msg = f'Could not find a Population One account with IGN = "{ign}"'
+            raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
+        if len(pf_players) > 1:
+            msg = f'Found {len(pf_players)} players with IGN = "{ign}". Reach out to @GO_STOOOBE to help fix this.'
+            raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
+        
+        pf_p = pf_players[0]
+        
+        if pf_p.go_player is not None:
+            msg = f'This IGN is allready associated with Discord user = "{pf_p.go_player.discord_name}"'
+            raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
 
-            go_p.pf_player_id = pf_p.id
-            session.add(go_p)
-            session.commit()
-
+        go_p.pf_player_id = pf_p.id
+        session.add(go_p)
+        session.commit()
+        return go_p
 
     @go_group.command( 
         description="Set your In Game Name"
@@ -107,21 +106,19 @@ class GoCog(commands.Cog):
         logger.info(f"Running set_ign({player.name}, {ign})")
         
         try:
-            self.do_set_ign(player=player, ign=ign)
-            
             with Session(self.engine) as session:
-                go_p = self.godb.read_player(discord_id=player.id, session=session)
-                msg = f'IGN for {player.name} set to "{ign}"'
-                
+
+                go_p = self.do_set_ign(player=player, ign=ign, session=session)            
+                # go_p = self.godb.read_player(discord_id=player.id, session=session)
+                go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating}'
+
                 stats = go_p.pf_player.career_stats[-1]
                 msg += f'\n* Account created on {go_p.pf_player.account_created.date()}'                
-                msg += f'\n* Career games played = {stats.games}'
-                msg += f'\n* Career win rate = {int(100.0*stats.wins/stats.games)}%'
-                msg += f'\n* Career kills per game = {int(10.0*stats.kills/stats.games)/10.0}'
-                msg += f'\n* Career damage per game = {int(stats.damage/stats.games)}'
+                msg += f'\n* Career Stats: games={stats.games}, win rate={100.0*stats.wins/stats.games:.0f}%, kpg={stats.kills/stats.games:.1f}'
                 
                 logger.info(msg)
-                await interaction.response.send_message(msg) 
+                await interaction.response.send_message(msg)
             
         except DiscordUserError as err:
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
@@ -441,10 +438,13 @@ class GoCog(commands.Cog):
         logger.info(f"Running go_admin.set_ign({player.name}, {ign})")
         
         try:
-            self.do_set_ign(player=player, ign=ign)
-            msg = f'IGN for {player.name} set to "{ign}"'
-            logger.info(msg)
-            await interaction.response.send_message(msg) 
+            with Session(self.engine) as session:
+                
+                go_p = self.do_set_ign(player=player, ign=ign, session=session)
+                go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating}'
+                logger.info(msg)
+                await interaction.response.send_message(msg) 
             
         except DiscordUserError as err:
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")

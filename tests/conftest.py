@@ -10,7 +10,7 @@ from go.go_cog import DiscordUser, GoCog
 from go.playfab_db import PlayfabDB
 from go.go_db import GoDB
 from go.models import GoPlayer, GoTeam, PfPlayer, PfCareerStats, PfIgnHistory
-
+import _config
 
 @pytest.fixture
 def go_p1() -> Generator[GoPlayer, None, None]:
@@ -164,7 +164,7 @@ def stats_p2_2() -> Generator[PfCareerStats, None, None]:
 @pytest.fixture
 def engine(scope="session") -> Generator[Engine, None, None]:
     sqlite_url = f"sqlite://" # in mem
-    engine = create_engine(sqlite_url, echo=False)
+    engine = create_engine(sqlite_url, echo=_config.godb_echo)
     SQLModel.metadata.create_all(engine)    
     yield engine
 
@@ -226,9 +226,9 @@ def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, scope="fun
     gocog.pfdb.create_player(player=pf_p1, session=session)
     gocog.pfdb.create_player(player=pf_p2, session=session)
     gocog.pfdb.create_player(player=pf_p3, session=session)
-    gocog.do_set_ign(player=du1, ign=pf_p1.ign)
-    gocog.do_set_ign(player=du2, ign=pf_p2.ign)
-    gocog.do_set_ign(player=du3, ign=pf_p3.ign)
+    gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
+    gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
+    gocog.do_set_ign(player=du3, ign=pf_p3.ign, session=session)
     yield gocog
 
 
