@@ -47,7 +47,7 @@ class MyBot(commands.Bot):
 
 async def main():
 
-    engine = create_engine(_config.godb_url, echo=_config.godb_echo)
+    engine = create_engine(_config.godb_url, echo=_config.godb_echo, pool_recycle=3600, pool_pre_ping=True)
 
     SQLModel.metadata.create_all(engine)
     
