@@ -198,6 +198,17 @@ def stats_p2_3() -> Generator[PfCareerStats, None, None]:
     )
     yield stats
 
+@pytest.fixture
+def stats_p3_1() -> Generator[PfCareerStats, None, None]:
+    stats = PfCareerStats(
+        date = datetime(2023, 1, 3),
+        pf_player_id=3,
+        games=103,
+        wins=53,
+        kills=73,
+        damage=5003,
+    )
+    yield stats
 
 @pytest.fixture
 def engine(scope="session") -> Generator[Engine, None, None]:
@@ -260,13 +271,21 @@ def gocog(godb, pfdb, engine, scope="function"):
     yield cog
     
 @pytest.fixture
-def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, scope="function"):
+def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, stats_p1_1, stats_p2_1, stats_p3_1, scope="function"):
     gocog.pfdb.create_player(player=pf_p1, session=session)
     gocog.pfdb.create_player(player=pf_p2, session=session)
     gocog.pfdb.create_player(player=pf_p3, session=session)
     gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
     gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
     gocog.do_set_ign(player=du3, ign=pf_p3.ign, session=session)
+    gocog.pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    gocog.pfdb.add_career_stats(stats=stats_p2_1, session=session)
+    gocog.pfdb.add_career_stats(stats=stats_p3_1, session=session)
+    gocog.set_rating_if_needed(pf_p1.id, session)
+    gocog.set_rating_if_needed(pf_p2.id, session)
+    gocog.set_rating_if_needed(pf_p3.id, session)
+    
+    
     yield gocog
 
 

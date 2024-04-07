@@ -142,7 +142,7 @@ class GoCog(commands.Cog):
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
                        
                 go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.2f}'
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.0f}'
 
                 stats = go_p.pf_player.career_stats[-1]
                 msg += f'\n* Account created on {go_p.pf_player.account_created.date()}'                
@@ -220,6 +220,12 @@ class GoCog(commands.Cog):
             if go_player is None or go_player.pf_player is None:
                 msg = f'Signup failed. Player {player.name} needs run `/go set_ign`.'
                 raise DiscordUserError(msg)
+            
+            # make sure all players have ratings
+            player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
+            if player_rating is None:
+                msg = f'Signup failed. Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this.'
+                raise DiscordUserError(msg)
 
         if len(discord_ids) < len(players):
             msg = f'Signup failed. The same player can not be on one team twice.'
@@ -262,6 +268,11 @@ class GoCog(commands.Cog):
         if go_team_by_roster is None:
             msg = f'Could not create team in DB'
             raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+
+        rating_limit = _config.go_rating_limits.get(go_team_by_roster.team_size, None)
+        if rating_limit is not None and go_team_by_roster.team_rating > rating_limit:
+                msg = f'Signup failed. Team "{team_name}" rating {go_team_by_roster.team_rating:,.0f} is over the cap {rating_limit:,.0f}.'
+                raise DiscordUserError(msg)
 
         try:
            signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
@@ -308,10 +319,10 @@ class GoCog(commands.Cog):
                 signup = self.do_signup(players=players, team_name=team_name, date=date, session=session)
 
                 team = signup.team
-                # team = self.godb.read_team(team_id=signup.team_id, session=session)
 
                 igns = [r.player.pf_player.ign for r in team.rosters]
                 msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+                msg += f'\nTeam GO Rating is {team.team_rating:,.0f}.'
                 msg += f'\nThis is signup #{len(team.signups)} for the team.'
                 logger.info(msg)
                 await interaction.response.send_message(msg)
@@ -478,7 +489,7 @@ class GoCog(commands.Cog):
                     msg = f'Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this.'
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
                                        
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.2f}'
+                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.0f}'
                 logger.info(msg)
                 await interaction.response.send_message(msg) 
             

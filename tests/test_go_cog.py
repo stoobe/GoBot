@@ -121,12 +121,30 @@ def test_set_ign_duplicate_ign(gocog, godb, pfdb, session, pf_p1, du1, pf_p1v2):
         gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
 
-def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):
+def test_signup_with_missing_rating_fail(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
     pfdb.create_player(player=pf_p1, session=session)
 
     assert 0 == godb.signup_count(session=session)
     gocog.do_set_ign(player=du1, ign="IGN1", session=session)
+
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
     
+    # without setting the rating do_signup will fail
+    # gocog.set_rating_if_needed(pf_p1.id, session)
+
+    with pytest.raises(DiscordUserError):
+        signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
+
+
+def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
+    pfdb.create_player(player=pf_p1, session=session)
+
+    assert 0 == godb.signup_count(session=session)
+    gocog.do_set_ign(player=du1, ign="IGN1", session=session)
+
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    gocog.set_rating_if_needed(pf_p1.id, session)
+
     signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
     assert 1 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
@@ -141,11 +159,16 @@ def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1):
     assert len(team.rosters) == 1
     
     
-def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2):
+def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2, stats_p1_1, stats_p2_1):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
     gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
     gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
+
+    pfdb.add_career_stats(stats=stats_p1_1, session=session)
+    pfdb.add_career_stats(stats=stats_p2_1, session=session)
+    gocog.set_rating_if_needed(pf_p1.id, session)
+    gocog.set_rating_if_needed(pf_p2.id, session)
     
     signup = gocog.do_signup(players=[du1, du2], team_name="tname2", date=date1, session=session)
     assert 2 == godb.player_count(session=session)

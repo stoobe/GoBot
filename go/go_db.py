@@ -102,7 +102,15 @@ class GoDB:
         if existing_team is not None:
             raise GoDbError(f"Team with roster { {p.discord_name for p in go_players} } already exists.")
         
-        team = GoTeam(team_name=team_name, team_size=team_size)
+        team_rating = 0.0
+        for go_p in go_players:
+            player_rating = self.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+            if player_rating is None:
+                team_rating = None
+                break
+            team_rating += player_rating            
+        
+        team = GoTeam(team_name=team_name, team_size=team_size, team_rating=team_rating)
         session.add(team)
         session.commit()
         session.refresh(team)
