@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import pytest
 from go.models import PfPlayer
 
+from go.playfab_api import is_playfab_str
 from go.playfab_db import PfIgnHistory
 from go.exceptions import PlayerNotFoundError
 
@@ -484,3 +485,13 @@ def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
     rating = pfdb.calc_rating_from_stats(pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
     assert rating is None
 
+
+def test_is_playfab_str():
+    assert is_playfab_str("14E017AE65DFDD61") == True
+    assert is_playfab_str("2189293418489239") == True
+    assert is_playfab_str("14e017AE65DFDD61") == False
+    assert is_playfab_str("14E017AE65DFDD611") == False
+    assert is_playfab_str("14E017AE65DFDD6") == False
+    assert is_playfab_str("abc") == False
+    assert is_playfab_str("") == False
+    assert is_playfab_str(None) == False

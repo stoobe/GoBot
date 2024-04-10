@@ -15,6 +15,7 @@ import _config
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
 from go.models import GoPlayer, GoRatings, GoSchedule, GoSignup, GoTeam
+from go.playfab_api import as_player_id, is_playfab_str
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
@@ -103,15 +104,22 @@ class GoCog(commands.Cog):
             raise DiscordUserError(msg)
 
         # lookup the playfab_player by ign
+        pf_p = None
         pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
-        if not pf_players:
-            msg = f'Could not find a Population One account with IGN = "{ign}"'
-            raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
+        
         if len(pf_players) > 1:
             msg = f'Found {len(pf_players)} players with IGN = "{ign}". Reach out to @GO_STOOOBE to help fix this.'
             raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
-        
-        pf_p = pf_players[0]
+        elif len(pf_players) == 1:
+            pf_p = pf_players[0]
+        elif is_playfab_str(ign):
+            pf_player_id = as_player_id(ign)
+            pf_p = self.pfdb.read_player(pf_player_id=pf_player_id, session=session)
+
+        if pf_p is None:
+            msg = f'Could not find a Population One account with IGN = "{ign}"'
+            raise DiscordUserError(msg, code=ErrorCode.IGN_NOT_FOUND)
+
         
         if pf_p.go_player is not None:
             msg = f'This IGN is allready associated with Discord user = "{pf_p.go_player.discord_name}"'
@@ -401,22 +409,27 @@ class GoCog(commands.Cog):
         with Session(self.engine) as session:  
             session_id = interaction.channel_id
             date = self.godb.get_session_date(session_id=session_id, session=session)
-            teams = self.godb.get_teams_for_date(session_date=date, session=session)
+            
             msg = ''
-            player_count = 0
-            for team in teams:
-                session.refresh(team)
-                players = [r.player for r in team.rosters]
-                players_str = ''
-                for p in players:
-                    player_count += 1
-                    session.refresh(p.pf_player)
-                    if players_str:
-                        players_str += ', '
-                    players_str += p.pf_player.ign
-                rating_str = f'{team.team_rating:,.0f}' if team.team_rating else 'None'
-                msg += f'**{team.team_name}** (*{rating_str}*) -- {players_str}\n'
-            msg = f'**teams:** {len(teams)}\n**players:** {player_count}\n\n' + msg 
+            if date is None:
+                msg = 'This channel has no games to signup for.'
+            else:
+                teams = self.godb.get_teams_for_date(session_date=date, session=session)
+                msg = ''
+                player_count = 0
+                for team in teams:
+                    session.refresh(team)
+                    players = [r.player for r in team.rosters]
+                    players_str = ''
+                    for p in players:
+                        player_count += 1
+                        session.refresh(p.pf_player)
+                        if players_str:
+                            players_str += ', '
+                        players_str += p.pf_player.ign
+                    rating_str = f'{team.team_rating:,.0f}' if team.team_rating else 'None'
+                    msg += f'**{team.team_name}** (*{rating_str}*) -- {players_str}\n'
+                msg = f'**teams:** {len(teams)}\n**players:** {player_count}\n\n' + msg 
             logger.info(msg)
             await interaction.response.send_message(msg) 
             

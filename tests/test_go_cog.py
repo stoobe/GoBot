@@ -3,6 +3,7 @@ from datetime import date as datetype
 import pytest
 
 from go.exceptions import DiscordUserError
+from go.playfab_api import as_player_id
 
 date1 = datetype(year=2022, month=1, day=1)
 date2 = datetype(year=2022, month=1, day=2)
@@ -120,6 +121,24 @@ def test_set_ign_duplicate_ign(gocog, godb, pfdb, session, pf_p1, du1, pf_p1v2):
     with pytest.raises(DiscordUserError):
         gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
+
+def test_do_set_ign_as_playfabid(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
+    playfab_str = "14E017AE65DFDD61"
+    pf_p1.id = as_player_id(playfab_str)
+    pfdb.create_player(player=pf_p1, session=session)    
+    godb.create_player(go_player=go_p1, session=session)
+    
+    assert go_p1.pf_player is None
+    assert pf_p1.go_player is None
+
+    gocog.do_set_ign(player=du1, ign=playfab_str, session=session)
+
+    session.refresh(pf_p1)    
+    assert pf_p1.go_player.discord_id == go_p1.discord_id    
+
+    session.refresh(go_p1)
+    assert go_p1.pf_player_id == pf_p1.id
+    
 
 def test_signup_with_missing_rating_fail(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
     pfdb.create_player(player=pf_p1, session=session)

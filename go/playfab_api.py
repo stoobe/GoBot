@@ -2,6 +2,7 @@ from typing import List
 from attr import define
 from icecream import ic
 
+import re
 from datetime import datetime
 from dateutil import parser
 import requests
@@ -21,6 +22,18 @@ def as_player_id(playfab_id: str) -> int:
             player_id = int(playfab_id,16) #playfabs are 16 digit Hex numbers (64 bit int)
             player_id -= 2**63  # db is signed so make this range from -2^63 to + 2^63
             return player_id
+
+playfab_pattern = re.compile(r'([0-9A-F]{16})')
+
+def is_playfab_str(s):
+    global playfab_pattern
+    if s is None:
+        return False
+    m = re.fullmatch(playfab_pattern, s)
+    if m:
+        return True
+    else:
+        return False
 
 
 class PlayfabApi:
