@@ -385,7 +385,37 @@ class GoCog(commands.Cog):
             except DiscordUserError as err:
                 logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
                 await interaction.response.send_message(err.message) 
+
+
+
+    @go_group.command( 
+        description="List the teams playing today"
+        )
+    async def list_teams(
+            self, 
+            interaction: discord.Interaction
+        ):
         
+        logger.info(f"Running list_teams on  channel_id: {interaction.channel_id}  channel.name: {interaction.channel.name}")
+        
+        with Session(self.engine) as session:  
+            session_id = interaction.channel_id
+            date = self.godb.get_session_date(session_id=session_id, session=session)
+            teams = self.godb.get_teams_for_date(session_date=date, session=session)
+            msg = ''
+            for team in teams:
+                session.refresh(team)
+                players = [r.player for r in team.rosters]
+                players_str = ''
+                for p in players:
+                    session.refresh(p.pf_player)
+                    if players_str:
+                        players_str += ', '
+                    players_str += p.pf_player.ign
+                msg += f'{team.team_name}, rating={team.team_rating}, players=[{players_str}]\n'
+            logger.info(msg)
+            await interaction.response.send_message(msg) 
+            
 
     @admin_group.command( 
         description="Admin tool for syncing commands"
@@ -402,46 +432,6 @@ class GoCog(commands.Cog):
         
         await interaction.user.send('Command tree synced.')
         logger.info('Command tree synced.')
-
-
-    # @admin_group.command( 
-    #     description="Admin tool for syncing commands"
-    #     )
-    # async def global_sync(self, interaction: discord.Interaction):
-    #     logger.info(f'Command global_sync called by user {get_name(interaction.user)}.')
-    #     if interaction.user.id != _config.owner_id:
-    #         await interaction.response.send_message('You dont have permission to use this command!')
-    #         return
-
-    #     await interaction.response.send_message('Global sync starting.')
-    #     await self.bot.tree.sync()
-        
-    #     await interaction.user.send('Global command tree synced.')
-    #     logger.info('Command tree globally synced.')
-
-
-
-
-    # @admin_group.command( 
-    #     description="Admin tool for removing commands"
-    #     )
-    # async def remove_command(self, interaction: discord.Interaction, command: str):
-    #     logger.info(f'Command remove_command {command} called by user {get_name(interaction.user)}.')
-    #     if interaction.user.id != _config.owner_id:
-    #         await interaction.response.send_message('You dont have permission to use this command!')
-    #         return
-
-    #     logger.info(f"remove_command being run on :   {[c.qualified_name for c in self.bot.tree.walk_commands()]}")
-
-    #     for c in self.bot.tree.walk_commands():
-    #         if c.qualified_name.count(command) > 0:
-    #             logger.info(f"removing {c.qualified_name}")
-    #             self.bot.tree.remove_command(c.qualified_name)
-        
-    #     await interaction.response.send_message(f'remove_command {command} complete.')
-    #     logger.info(f'remove_command {command} complete.')
-
-
 
 
     @admin_group.command()

@@ -11,7 +11,7 @@ class GoPlayer(SQLModel, table=True):
     discord_id: int = Field(sa_column=Column(BigInteger(), primary_key=True, unique=True))
     discord_name: str
     pf_player_id: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), default=None, unique=True))
-    created_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
 
     rosters : List["GoRoster"] = Relationship(back_populates="player", sa_relationship_kwargs={"cascade": "delete"})
     pf_player : Optional["PfPlayer"] = Relationship(back_populates="go_player")
@@ -45,7 +45,7 @@ class GoSignup(SQLModel, table=True):
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
     session_date: date = Field(primary_key=True)
     lobby_id: Optional[int] = Field(default=None, foreign_key="go_lobby.id")
-    signup_time: datetime = Field(default=datetime.now())
+    signup_time: datetime = Field(default_factory=lambda: datetime.now())
 
     team: GoTeam = Relationship(back_populates="signups")
     lobby: "GoLobby" = Relationship(back_populates="signups")

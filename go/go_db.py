@@ -238,6 +238,16 @@ class GoDB:
         statement = select(GoTeam).where(GoTeam.team_name == team_name)
         team = session.exec(statement).first()
         return team
+
+
+    def get_teams_for_date(self, session_date, session:Session) -> datetype:
+        logger.info(f"Reading GoSignups with {session_date = } from DB")
+        statement = select(GoSignup).where(GoSignup.session_date == session_date).order_by(GoSignup.signup_time)
+        results = session.exec(statement)
+        teams = []
+        for signup in results:
+            teams.append(signup.team)
+        return teams
         
 
     def get_session_date(self, session_id, session:Session) -> datetype:

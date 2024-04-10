@@ -1,6 +1,7 @@
 from datetime import datetime
 from datetime import date as datetype
 from typing import List
+from time import sleep
 import pytest
 
 from go.exceptions import GoDbError, PlayerNotFoundError
@@ -347,3 +348,51 @@ def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
     
     go_rating = godb.get_official_rating(pf_player_id=pf_p1.id, session=session)
     assert go_rating == 1234.5
+    
+    
+
+def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
+    team1 = godb.create_team(team_name="tn1", go_players=[go_p1], session=session)
+    
+    team12 = godb.create_team(team_name="tn12", go_players=[go_p1, go_p2], session=session)
+    team2 = godb.create_team(team_name="tn2", go_players=[go_p2], session=session)
+    team123 = godb.create_team(team_name="tn123", go_players=[go_p1, go_p2, go_p3], session=session)
+    team23 = godb.create_team(team_name="tn23", go_players=[go_p2, go_p3], session=session)
+    team3 = godb.create_team(team_name="tn3", go_players=[go_p3], session=session)
+
+    godb.add_signup(team=team1, date=date1, session=session)
+    godb.add_signup(team=team23, date=date1, session=session)
+    godb.add_signup(team=team12, date=date2, session=session)
+    godb.add_signup(team=team123, date=date3, session=session)
+    godb.add_signup(team=team1, date=date4, session=session)
+    godb.add_signup(team=team3, date=date4, session=session)
+    godb.add_signup(team=team2, date=date4, session=session)
+    
+    teams1 = godb.get_teams_for_date(session_date=date1, session=session)
+    assert len(teams1) == 2
+    assert teams1[0].id == team1.id
+    assert teams1[1].id == team23.id
+    
+    teams4 = godb.get_teams_for_date(session_date=date4, session=session)
+    assert len(teams4) == 3
+    assert teams4[0].id == team1.id
+    assert teams4[1].id == team3.id
+    assert teams4[2].id == team2.id
+        
+    teams5 = godb.get_teams_for_date(session_date=date5, session=session)
+    assert len(teams5) == 0
+
+    # # test code for go_cog
+    # msg = ''
+    # for team in teams4:
+    #     session.refresh(team)
+    #     players = [r.player for r in team.rosters]
+    #     players_str = ''
+    #     for p in players:
+    #         session.refresh(p.pf_player)
+    #         if players_str:
+    #             players_str += ', '
+    #         players_str += p.pf_player.ign
+    #     msg += f'{team.team_name}, rating={team.team_rating}, players=[{players_str}]\n'
+    # print(f'msg: \n{msg}')
+    # assert(0)
