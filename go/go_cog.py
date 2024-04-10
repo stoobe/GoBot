@@ -412,7 +412,7 @@ class GoCog(commands.Cog):
                     if players_str:
                         players_str += ', '
                     players_str += p.pf_player.ign
-                msg += f'{team.team_name}, rating={team.team_rating}, players=[{players_str}]\n'
+                msg += f'**{team.team_name}** (*{team.team_rating}*) -- {players_str}\n'
             logger.info(msg)
             await interaction.response.send_message(msg) 
             

@@ -384,15 +384,15 @@ def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
 
     # # test code for go_cog
     # msg = ''
-    # for team in teams4:
-    #     session.refresh(team)
-    #     players = [r.player for r in team.rosters]
-    #     players_str = ''
-    #     for p in players:
-    #         session.refresh(p.pf_player)
-    #         if players_str:
-    #             players_str += ', '
-    #         players_str += p.pf_player.ign
-    #     msg += f'{team.team_name}, rating={team.team_rating}, players=[{players_str}]\n'
+    # for team in teams1:
+    #             session.refresh(team)
+    #             players = [r.player for r in team.rosters]
+    #             players_str = ''
+    #             for p in players:
+    #                 session.refresh(p.pf_player)
+    #                 if players_str:
+    #                     players_str += ', '
+    #                 players_str += p.pf_player.ign
+    #             msg += f'**{team.team_name}** (*{team.team_rating}*) -- {players_str}\n'
     # print(f'msg: \n{msg}')
     # assert(0)
