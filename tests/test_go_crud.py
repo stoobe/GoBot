@@ -353,6 +353,8 @@ def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
 
 def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
     team1 = godb.create_team(team_name="tn1", go_players=[go_p1], session=session)
+    team1.team_rating = 1234.56
+    session.add(team1)
     
     team12 = godb.create_team(team_name="tn12", go_players=[go_p1, go_p2], session=session)
     team2 = godb.create_team(team_name="tn2", go_players=[go_p2], session=session)
@@ -382,17 +384,18 @@ def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
     teams5 = godb.get_teams_for_date(session_date=date5, session=session)
     assert len(teams5) == 0
 
-    # # test code for go_cog
-    # msg = ''
-    # for team in teams1:
-    #             session.refresh(team)
-    #             players = [r.player for r in team.rosters]
-    #             players_str = ''
-    #             for p in players:
-    #                 session.refresh(p.pf_player)
-    #                 if players_str:
-    #                     players_str += ', '
-    #                 players_str += p.pf_player.ign
-    #             msg += f'**{team.team_name}** (*{team.team_rating}*) -- {players_str}\n'
-    # print(f'msg: \n{msg}')
-    # assert(0)
+    # test code for go_cog
+    msg = ''
+    for team in teams1:
+                session.refresh(team)
+                players = [r.player for r in team.rosters]
+                players_str = ''
+                for p in players:
+                    session.refresh(p.pf_player)
+                    if players_str:
+                        players_str += ', '
+                    players_str += p.pf_player.ign
+                rating_str = f'{team.team_rating:,.0f}' if team.team_rating else 'None'
+                msg += f'**{team.team_name}** (*{rating_str}*) -- {players_str}\n'
+    print(f'msg: \n{msg}')
+    assert(0)
