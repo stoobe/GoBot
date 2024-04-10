@@ -150,7 +150,7 @@ class GoCog(commands.Cog):
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
                        
                 go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.0f}'
+                msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
 
                 stats = go_p.pf_player.career_stats[-1]
                 msg += f'\n* Account created on {go_p.pf_player.account_created.date()}'                
@@ -183,8 +183,7 @@ class GoCog(commands.Cog):
                 
                 go_p = self.godb.read_player(discord_id=player.id, session=session)
                 if go_p is not None:
-                    ign = go_p.pf_player.ign              
-                    msg = f'IGN for {player.name} set to "{ign}"'
+                    msg = f'IGN for {player.name} is set to "{go_p.pf_player.ign}"'
                 else:
                     msg = f'{player.name} is not registered with GoBot'
                 
@@ -496,7 +495,7 @@ class GoCog(commands.Cog):
                     msg = f'Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this.'
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
                                        
-                msg = f'IGN for {player.name} set to "{ign}" with GO Rating {go_rating:,.0f}'
+                msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
                 logger.info(msg)
                 await interaction.response.send_message(msg) 
             
