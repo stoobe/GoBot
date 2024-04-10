@@ -385,17 +385,23 @@ def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
     assert len(teams5) == 0
 
     # test code for go_cog
-    msg = ''
-    for team in teams1:
-                session.refresh(team)
-                players = [r.player for r in team.rosters]
-                players_str = ''
-                for p in players:
-                    session.refresh(p.pf_player)
-                    if players_str:
-                        players_str += ', '
-                    players_str += p.pf_player.ign
-                rating_str = f'{team.team_rating:,.0f}' if team.team_rating else 'None'
-                msg += f'**{team.team_name}** (*{rating_str}*) -- {players_str}\n'
-    print(f'msg: \n{msg}')
-    assert(0)
+    # teams = teams1
+    # if 1:
+    #     if 1:
+    #         msg = ''
+    #         player_count = 0
+    #         for team in teams:
+    #             session.refresh(team)
+    #             players = [r.player for r in team.rosters]
+    #             players_str = ''
+    #             for p in players:
+    #                 player_count += 1
+    #                 session.refresh(p.pf_player)
+    #                 if players_str:
+    #                     players_str += ', '
+    #                 players_str += p.pf_player.ign
+    #             rating_str = f'{team.team_rating:,.0f}' if team.team_rating else 'None'
+    #             msg += f'**{team.team_name}** (*{rating_str}*) -- {players_str}\n'
+    #         msg = f'**teams:** {len(teams)}\n**players:** {player_count}\n\n' + msg 
+    # print(f'msg: \n{msg}')
+    # assert(0)
