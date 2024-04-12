@@ -240,10 +240,13 @@ class GoCog(commands.Cog):
 
         go_team_by_roster = self.godb.read_team_with_roster(discord_ids=discord_ids, session=session)        
         
-        # make sure if our team already exists the name is the same
+        # if the team name exists with a different name
         if go_team_by_roster and go_team_by_roster.team_name != team_name:
-            msg = f'Signup failed. Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
-            raise DiscordUserError(msg)
+            # msg = f'Signup failed. Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
+            # raise DiscordUserError(msg)
+            team_name = go_team_by_roster.team_name
+            logger.info(f'In do_signup: team already has name "{team_name}".  Using that name instead.')
+
         
         # read_team_with_name can handle team_name=None
         go_team_by_name = self.godb.read_team_with_name(team_name=team_name, session=session) 

@@ -259,10 +259,10 @@ def test_signup_dup_user_fails(gocog_preload, session, du1, du2, du3):
         gocog_preload.do_signup(players=[du1, du1, du3], team_name="tname3", date=date1, session=session)
 
 
-def test_signup_name_change_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
-    with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(players=[du1, du2, du3], team_name="SAME TEAM DIFF NAME", date=date2, session=session)
+def test_signup_name_change_uses_old_name(gocog_preload, session, du1, du2, du3):
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="SAME TEAM DIFF NAME", date=date2, session=session)
+    assert signup.team.team_name == "tname3"
 
 
 def test_signup_name_collision_fail(gocog_preload, session, du1, du2, du3):
