@@ -6,6 +6,7 @@ from go.playfab_api import is_playfab_str
 from go.playfab_db import PfIgnHistory
 from go.exceptions import PlayerNotFoundError
 
+
 def test_create_and_read_player(pfdb, session, pf_p1):
     function_start = datetime.now()
 
@@ -41,7 +42,7 @@ def test_read_players_by_ign(pfdb, session, pf_p1, pf_p2):
 
     players = pfdb.read_players_by_ign(ign=pf_p2.ign, session=session)
     assert len(players) == 1
-    player2 = players[0]    
+    player2 = players[0]
     assert player2.id == pf_p2.id
 
     players = pfdb.read_players_by_ign(ign="IGN NOT IN DB", session=session)
@@ -58,7 +59,7 @@ def test_read_players_by_ign_duplicate(pfdb, session, pf_p1, pf_p2, pf_p1v2):
     ids = set([_.id for _ in players])
     assert pf_p1.id in ids
     assert pf_p1v2.id in ids
-    
+
 
 def test_read_players_by_ign_test_cases_and_limit(pfdb, session, pf_p1, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
@@ -80,7 +81,8 @@ def test_read_players_by_ign_test_cases_and_limit(pfdb, session, pf_p1, pf_p2):
     assert player1.id == pf_p1.id
 
     # try searching for just the last few characters of the name
-    players = pfdb.read_players_by_ign(ign=pf_p1.ign.lower()[2:], session=session)
+    players = pfdb.read_players_by_ign(
+        ign=pf_p1.ign.lower()[2:], session=session)
     assert len(players) == 1
     player1 = players[0]
     assert player1.id == pf_p1.id
@@ -92,15 +94,15 @@ def test_read_players_by_ign_test_cases_and_limit(pfdb, session, pf_p1, pf_p2):
     # same thing lower case
     players = pfdb.read_players_by_ign(ign="ign", session=session)
     assert len(players) == 2
-    
+
     # same query but lmit to 1
     players = pfdb.read_players_by_ign(ign="ign", session=session, limit=1)
     assert len(players) == 1
 
-    
+
 def test_player_exists(pfdb, session, pf_p1, pf_p2):
     assert pfdb.player_exists(pf_player_id=pf_p1.id, session=session) == False
-    
+
     # Write Player to DB
     pfdb.create_player(player=pf_p1, session=session)
     assert 1 == pfdb.player_count(session=session)
@@ -173,12 +175,12 @@ def test_delete_all_players(pfdb, session, pf_p1, pf_p2):
                          [
                              (None, None, None),
                              ("IGN111", None, None),
-                             (None, datetime(2023,3,3,3,3,3), None),
+                             (None, datetime(2023, 3, 3, 3, 3, 3), None),
                              (None, None, "av.url"),
-                             ("IGN111", datetime(2023,3,3,3,3,3), None),
+                             ("IGN111", datetime(2023, 3, 3, 3, 3, 3), None),
                              ("IGN111", None, "av.url"),
-                             (None, datetime(2023,3,3,3,3,3), "av.url"),
-                             ("IGN111", datetime(2023,3,3,3,3,3), "av.url"),
+                             (None, datetime(2023, 3, 3, 3, 3, 3), "av.url"),
+                             ("IGN111", datetime(2023, 3, 3, 3, 3, 3), "av.url"),
                          ])
 def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
     # Write Player to DB
@@ -188,7 +190,7 @@ def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign=ign, 
+        ign=ign,
         last_login=last_login,
         avatar_url=avatar_url
     )
@@ -204,19 +206,19 @@ def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
         assert player.ign == ign
     else:
         assert player.ign == pf_p1.ign
-    
+
     if last_login:
         assert player.last_login == last_login
     else:
         assert player.last_login == pf_p1.last_login
-    
+
     if avatar_url:
         assert player.avatar_url == avatar_url
     else:
         assert player.avatar_url == pf_p1.avatar_url
 
 
-def test_career_stats_create_and_read(pfdb, session, 
+def test_career_stats_create_and_read(pfdb, session,
                                       pf_p1, stats_p1_1, stats_p1_2,
                                       pf_p2, stats_p2_1, stats_p2_2):
     pfdb.create_player(player=pf_p1, session=session)
@@ -244,9 +246,9 @@ def test_career_stats_create_and_read(pfdb, session,
     assert len(p2stats) == 2
 
 
-def test_career_stats_deletes(pfdb, session, 
-                                      pf_p1, stats_p1_1, stats_p1_2,
-                                      pf_p2, stats_p2_1, stats_p2_2):
+def test_career_stats_deletes(pfdb, session,
+                              pf_p1, stats_p1_1, stats_p1_2,
+                              pf_p2, stats_p2_1, stats_p2_2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.add_career_stats(stats=stats_p1_1, session=session)
     pfdb.add_career_stats(stats=stats_p1_2, session=session)
@@ -290,7 +292,6 @@ def test_career_stats_deletes(pfdb, session,
     assert len(p2stats) == 0
 
 
-
 @pytest.mark.parametrize("igns",
                          [
                              (["IGN2"]),
@@ -311,7 +312,7 @@ def test_ign_hist_updates(pfdb, session, pf_p1, igns):
         pfdb.update_player(
             session=session,
             pf_player_id=pf_p1.id,
-            ign=ign, 
+            ign=ign,
         )
 
         current_ign = ign
@@ -343,7 +344,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign=pf_p1.ign, #set to the same as before (no change)
+        ign=pf_p1.ign,  # set to the same as before (no change)
     )
     assert 1 == pfdb.ign_history_count(session=session)
 
@@ -357,7 +358,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign="IGN2", #a new name
+        ign="IGN2",  # a new name
     )
     assert 2 == pfdb.ign_history_count(session=session)
 
@@ -365,14 +366,14 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     player = pfdb.read_player(pf_player_id=pf_p1.id, session=session)
 
     assert len(player.ign_history) == 2
-    assert player.ign_history[0].ign == orig_ign    
-    assert player.ign_history[1].ign == "IGN2"        
+    assert player.ign_history[0].ign == orig_ign
+    assert player.ign_history[1].ign == "IGN2"
 
     # Update Player
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign="IGN2", #set to the same as before (no change)
+        ign="IGN2",  # set to the same as before (no change)
     )
     assert 2 == pfdb.ign_history_count(session=session)
 
@@ -382,7 +383,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     # make sure updating the player with the same IGN as before
     # doesn't add an entry to ign_history
     assert len(player.ign_history) == 2
-    assert player.ign_history[0].ign == orig_ign    
+    assert player.ign_history[0].ign == orig_ign
     assert player.ign_history[1].ign == "IGN2"
     assert 2 == pfdb.ign_history_count(session=session)
 
@@ -390,7 +391,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign="IGN3", #a new name
+        ign="IGN3",  # a new name
     )
     assert 3 == pfdb.ign_history_count(session=session)
 
@@ -398,15 +399,15 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     player = pfdb.read_player(pf_player_id=pf_p1.id, session=session)
 
     assert len(player.ign_history) == 3
-    assert player.ign_history[0].ign == orig_ign    
+    assert player.ign_history[0].ign == orig_ign
     assert player.ign_history[1].ign == "IGN2"
     assert player.ign_history[2].ign == "IGN3"
-    
+
     # Update Player
     pfdb.update_player(
         session=session,
         pf_player_id=pf_p1.id,
-        ign=orig_ign, #a new name
+        ign=orig_ign,  # a new name
     )
     assert 4 == pfdb.ign_history_count(session=session)
 
@@ -414,11 +415,11 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
     player = pfdb.read_player(pf_player_id=pf_p1.id, session=session)
 
     assert len(player.ign_history) == 4
-    assert player.ign_history[0].ign == orig_ign    
+    assert player.ign_history[0].ign == orig_ign
     assert player.ign_history[1].ign == "IGN2"
-    assert player.ign_history[2].ign == "IGN3"         
-    assert player.ign_history[3].ign == orig_ign    
-    
+    assert player.ign_history[2].ign == "IGN3"
+    assert player.ign_history[3].ign == orig_ign
+
     one_hour_ago = datetime.now() - timedelta(hours=1)
     # try adding an older ign and see if sorting still works:
     ign_row = PfIgnHistory(
@@ -432,14 +433,14 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
 
     assert 5 == pfdb.ign_history_count(session=session)
     assert len(player.ign_history) == 5
-    assert player.ign_history[0].ign == "IGNOLD"    
-    assert player.ign_history[1].ign == orig_ign    
+    assert player.ign_history[0].ign == "IGNOLD"
+    assert player.ign_history[1].ign == orig_ign
     assert player.ign_history[2].ign == "IGN2"
-    assert player.ign_history[3].ign == "IGN3"         
-    assert player.ign_history[4].ign == orig_ign    
+    assert player.ign_history[3].ign == "IGN3"
+    assert player.ign_history[4].ign == orig_ign
 
 
-def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2,stats_p1_zeros, stats_p2_1):
+def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2, stats_p1_zeros, stats_p2_1):
 
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
@@ -448,19 +449,19 @@ def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2,s
     pfdb.add_career_stats(stats=stats_p1_1, session=session)
     pfdb.add_career_stats(stats=stats_p1_2, session=session)
     pfdb.add_career_stats(stats=stats_p1_zeros, session=session)
-    
+
     assert stats_p1_zeros.calc_rating() == 0
     assert abs(stats_p1_1.calc_rating() - 320.2380952381) < 1e-8
     assert abs(stats_p1_2.calc_rating() - 448.7301587301) < 1e-8
-    
+
     diff_1_0 = stats_p1_1.calc_difference(stats_p1_zeros)
     diff_2_0 = stats_p1_2.calc_difference(stats_p1_zeros)
     diff_2_1 = stats_p1_2.calc_difference(stats_p1_1)
-    
+
     assert abs(diff_1_0.calc_rating() - 320.2380952381) < 1e-8
     assert abs(diff_2_0.calc_rating() - 448.7301587301) < 1e-8
     assert abs(diff_2_1.calc_rating() - 512.9761904762) < 1e-8
-    
+
     diff_1_1 = stats_p1_1.calc_difference(stats_p1_1)
     assert diff_1_1.calc_rating() == 0
 
@@ -472,11 +473,9 @@ def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2,s
     with pytest.raises(Exception):
         diff_p2_p1 = stats_p2_1.calc_difference(stats_p1_zeros)
 
-    
 
-
-def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2, 
-                                stats_p1_1, stats_p1_2, stats_p1_3, stats_p1_4, stats_p1_zeros, 
+def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
+                                stats_p1_1, stats_p1_2, stats_p1_3, stats_p1_4, stats_p1_zeros,
                                 stats_p2_1, stats_p2_2, stats_p2_3):
 
     pfdb.create_player(player=pf_p1, session=session)
@@ -491,37 +490,44 @@ def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
     pfdb.add_career_stats(stats=stats_p2_1, session=session)
     pfdb.add_career_stats(stats=stats_p2_2, session=session)
     pfdb.add_career_stats(stats=stats_p2_3, session=session)
-    
+
     diff_2_1 = stats_p1_2.calc_difference(stats_p1_1)
     diff_3_2 = stats_p1_3.calc_difference(stats_p1_2)
     diff_4_2 = stats_p1_4.calc_difference(stats_p1_2)
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_1.date, session=session)
-    assert rating ==  stats_p1_1.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p1.id, snapshot_date=stats_p1_1.date, session=session)
+    assert rating == stats_p1_1.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_2.date, session=session)
-    assert rating ==  stats_p1_2.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p1.id, snapshot_date=stats_p1_2.date, session=session)
+    assert rating == stats_p1_2.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_3.date, session=session)
-    assert rating ==  diff_3_2.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p1.id, snapshot_date=stats_p1_3.date, session=session)
+    assert rating == diff_3_2.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_4.date, session=session)
-    assert rating ==  diff_4_2.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p1.id, snapshot_date=stats_p1_4.date, session=session)
+    assert rating == diff_4_2.calc_rating()
 
-    ### Player 2:
+    # Player 2:
 
     diff_2_1 = stats_p2_2.calc_difference(stats_p2_1)
     diff_3_2 = stats_p2_3.calc_difference(stats_p2_2)
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_2.date, session=session)
-    assert rating ==  diff_2_1.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p2.id, snapshot_date=stats_p2_2.date, session=session)
+    assert rating == diff_2_1.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_3.date, session=session)
-    assert rating ==  diff_3_2.calc_rating()
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=pf_p2.id, snapshot_date=stats_p2_3.date, session=session)
+    assert rating == diff_3_2.calc_rating()
 
-    ## Missing Player
-        
-    rating = pfdb.calc_rating_from_stats(pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
+    # Missing Player
+
+    rating = pfdb.calc_rating_from_stats(
+        pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
     assert rating is None
 
 

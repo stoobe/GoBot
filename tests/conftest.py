@@ -12,6 +12,7 @@ from go.go_db import GoDB
 from go.models import GoPlayer, GoTeam, PfPlayer, PfCareerStats, PfIgnHistory
 import _config
 
+
 @pytest.fixture
 def go_p1() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
@@ -19,6 +20,7 @@ def go_p1() -> Generator[GoPlayer, None, None]:
         discord_name="dn1",
     )
     yield player
+
 
 @pytest.fixture
 def go_p2() -> Generator[GoPlayer, None, None]:
@@ -28,6 +30,7 @@ def go_p2() -> Generator[GoPlayer, None, None]:
     )
     yield player
 
+
 @pytest.fixture
 def go_p3() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
@@ -35,7 +38,8 @@ def go_p3() -> Generator[GoPlayer, None, None]:
         discord_name="dn3",
     )
     yield player
-    
+
+
 @pytest.fixture
 def go_team1() -> Generator[GoTeam, None, None]:
     player = GoTeam(
@@ -44,6 +48,7 @@ def go_team1() -> Generator[GoTeam, None, None]:
     )
     yield player
 
+
 @pytest.fixture
 def go_team2() -> Generator[GoTeam, None, None]:
     player = GoTeam(
@@ -51,6 +56,7 @@ def go_team2() -> Generator[GoTeam, None, None]:
         player_count=2,
     )
     yield player
+
 
 @pytest.fixture
 def pf_p1() -> Generator[PfPlayer, None, None]:
@@ -99,7 +105,7 @@ def pf_p1v2() -> Generator[PfPlayer, None, None]:
 @pytest.fixture
 def stats_p1_1() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 1, 1),
+        date=datetime(2023, 1, 1),
         pf_player_id=1,
         games=10,
         wins=5,
@@ -112,7 +118,7 @@ def stats_p1_1() -> Generator[PfCareerStats, None, None]:
 @pytest.fixture
 def stats_p1_2() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 2, 1),
+        date=datetime(2023, 2, 1),
         pf_player_id=1,
         games=30,
         wins=20,
@@ -122,11 +128,10 @@ def stats_p1_2() -> Generator[PfCareerStats, None, None]:
     yield stats
 
 
-
 @pytest.fixture
 def stats_p1_3() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 4, 1),
+        date=datetime(2023, 4, 1),
         pf_player_id=1,
         games=530,
         wins=520,
@@ -139,7 +144,7 @@ def stats_p1_3() -> Generator[PfCareerStats, None, None]:
 @pytest.fixture
 def stats_p1_4() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 4, 7),
+        date=datetime(2023, 4, 7),
         pf_player_id=1,
         games=540,
         wins=530,
@@ -152,7 +157,7 @@ def stats_p1_4() -> Generator[PfCareerStats, None, None]:
 @pytest.fixture
 def stats_p1_zeros() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2022, 1, 1),
+        date=datetime(2022, 1, 1),
         pf_player_id=1,
         games=0,
         wins=0,
@@ -161,10 +166,11 @@ def stats_p1_zeros() -> Generator[PfCareerStats, None, None]:
     )
     yield stats
 
+
 @pytest.fixture
 def stats_p2_1() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 1, 1),
+        date=datetime(2023, 1, 1),
         pf_player_id=2,
         games=100,
         wins=50,
@@ -177,7 +183,7 @@ def stats_p2_1() -> Generator[PfCareerStats, None, None]:
 @pytest.fixture
 def stats_p2_2() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 2, 1),
+        date=datetime(2023, 2, 1),
         pf_player_id=2,
         games=300,
         wins=100,
@@ -186,10 +192,11 @@ def stats_p2_2() -> Generator[PfCareerStats, None, None]:
     )
     yield stats
 
+
 @pytest.fixture
 def stats_p2_3() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 6, 1),
+        date=datetime(2023, 6, 1),
         pf_player_id=2,
         games=450,
         wins=200,
@@ -198,10 +205,11 @@ def stats_p2_3() -> Generator[PfCareerStats, None, None]:
     )
     yield stats
 
+
 @pytest.fixture
 def stats_p3_1() -> Generator[PfCareerStats, None, None]:
     stats = PfCareerStats(
-        date = datetime(2023, 1, 3),
+        date=datetime(2023, 1, 3),
         pf_player_id=3,
         games=103,
         wins=53,
@@ -210,13 +218,13 @@ def stats_p3_1() -> Generator[PfCareerStats, None, None]:
     )
     yield stats
 
+
 @pytest.fixture
 def engine(scope="session") -> Generator[Engine, None, None]:
-    sqlite_url = f"sqlite://" # in mem
+    sqlite_url = f"sqlite://"  # in mem
     engine = create_engine(sqlite_url, echo=_config.godb_echo)
-    SQLModel.metadata.create_all(engine)    
+    SQLModel.metadata.create_all(engine)
     yield engine
-
 
 
 @pytest.fixture
@@ -225,11 +233,12 @@ def session(engine, scope="session") -> Generator[Session, None, None]:
     yield session
     session.close()
 
+
 @pytest.fixture
 def pfdb_instance(engine, scope="session") -> Generator[PlayfabDB, None, None]:
     pfdb = PlayfabDB(engine=engine)
     yield pfdb
-    
+
 
 @pytest.fixture
 def pfdb(pfdb_instance, session, scope="function") -> Generator[PlayfabDB, None, None]:
@@ -238,13 +247,13 @@ def pfdb(pfdb_instance, session, scope="function") -> Generator[PlayfabDB, None,
     yield pfdb_instance
     # Clear DB after test function
     pfdb_instance.delete_all_players(session=session)
- 
-    
+
+
 @pytest.fixture
 def godb_instance(engine, scope="session") -> Generator[GoDB, None, None]:
     godb = GoDB(engine=engine)
     yield godb
-    
+
 
 @pytest.fixture
 def godb(godb_instance, session, scope="function") -> Generator[GoDB, None, None]:
@@ -261,15 +270,17 @@ class TestBotStub(commands.Bot):
         self.godb = None
         self.pfdb = None
 
+
 @pytest.fixture
 def gocog(godb, pfdb, engine, scope="function"):
     bot = TestBotStub(engine=engine)
     bot.godb = godb
     bot.pfdb = pfdb
-    
+
     cog = GoCog(bot)
     yield cog
-    
+
+
 @pytest.fixture
 def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, stats_p1_1, stats_p2_1, stats_p3_1, scope="function"):
     gocog.pfdb.create_player(player=pf_p1, session=session)
@@ -284,20 +295,20 @@ def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, stats_p1_1
     gocog.set_rating_if_needed(pf_p1.id, session)
     gocog.set_rating_if_needed(pf_p2.id, session)
     gocog.set_rating_if_needed(pf_p3.id, session)
-    
-    
-    yield gocog
 
+    yield gocog
 
 
 @pytest.fixture
 def du1(go_p1, scope="function"):
-    return DiscordUser(id=go_p1.discord_id, name="user_name_1")   
+    return DiscordUser(id=go_p1.discord_id, name="user_name_1")
+
 
 @pytest.fixture
 def du2(go_p2, scope="function"):
-    return DiscordUser(id=go_p2.discord_id, name="user_name_2")   
+    return DiscordUser(id=go_p2.discord_id, name="user_name_2")
+
 
 @pytest.fixture
 def du3(go_p3, scope="function"):
-    return DiscordUser(id=go_p3.discord_id, name="user_name_3")   
+    return DiscordUser(id=go_p3.discord_id, name="user_name_3")
