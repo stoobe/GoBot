@@ -51,7 +51,7 @@ class GoCog(commands.Cog):
 
 
     go_group = app_commands.Group(name="go", description="GO League Commands")
-    admin_group = app_commands.Group(name="go_admin", description="Admin Commands")
+    admin_group = app_commands.Group(name="goadmin", description="GO Admin Commands")
     
     # Above, we declare a command Group, in discord terms this is a parent command
     # We define it within the class scope (not an instance scope) so we can use it as a decorator.
@@ -125,7 +125,7 @@ class GoCog(commands.Cog):
                 if len(p.career_stats) == 0:
                     continue
                 stats = p.career_stats[-1]
-                msg += f'\n* **{p.ign}** -- playfab ID= **{as_playfab_id(p.id)}**  games={stats.games:,.0f}  wr={stats.calc_wr()*100:.0f}%  kpg={stats.calc_kpg():.1f}  *(as of {stats.date.date()})*'
+                msg += f'\n* **{p.ign}** -- playfab ID= **{as_playfab_id(p.id)}**  games={stats.games:,.0f}  wr={stats.calc_wr()*100:.0f}%  kpg={stats.calc_kpg():.1f}'#  *(as of {stats.date.date()})*'
             raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
         elif len(pf_players) == 1:
             pf_p = pf_players[0]
@@ -181,35 +181,38 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message) 
 
 
-    @go_group.command( 
-        description="Get the In Game Name for a user"
-        )
-    async def get_ign(self, 
-                    interaction: discord.Interaction, 
-                    user: discord.Member = None, 
-                    ):
+    # # Removing this command in favor of player_info.
+    # # This command is confusing a lot of ppl intending to use set_ign
+    #
+    # @go_group.command( 
+    #     description="Get the In Game Name for a user"
+    #     )
+    # async def get_ign(self, 
+    #                 interaction: discord.Interaction, 
+    #                 user: discord.Member = None, 
+    #                 ):
         
-        if user is None:
-            user = interaction.user
+    #     if user is None:
+    #         user = interaction.user
             
-        player = convert_user(user)
-        logger.info(f"Running get_ign({player.name})")
+    #     player = convert_user(user)
+    #     logger.info(f"Running get_ign({player.name})")
         
-        try:
-            with Session(self.engine) as session:
+    #     try:
+    #         with Session(self.engine) as session:
                 
-                go_p = self.godb.read_player(discord_id=player.id, session=session)
-                if go_p is not None:
-                    msg = f'IGN for {player.name} is set to "{go_p.pf_player.ign}"'
-                else:
-                    msg = f'{player.name} is not registered with GoBot'
+    #             go_p = self.godb.read_player(discord_id=player.id, session=session)
+    #             if go_p is not None:
+    #                 msg = f'IGN for {player.name} is set to "{go_p.pf_player.ign}"'
+    #             else:
+    #                 msg = f'{player.name} is not registered with GoBot'
                 
-                logger.info(msg)
-                await interaction.response.send_message(msg) 
+    #             logger.info(msg)
+    #             await interaction.response.send_message(msg) 
                     
-        except DiscordUserError as err:
-            logger.warn(f"get_ign resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message) 
+    #     except DiscordUserError as err:
+    #         logger.warn(f"get_ign resulted in error code {err.code}: {err.message}")
+    #         await interaction.response.send_message(err.message) 
 
 
     def do_player_info(self, player: DiscordUser) -> str:
@@ -544,9 +547,9 @@ class GoCog(commands.Cog):
             
 
     @admin_group.command( 
-        description="Admin tool for syncing commands"
+        description="Syncs bot commands"
         )
-    async def sync(self, interaction: discord.Interaction):
+    async def sync_commands(self, interaction: discord.Interaction):
         logger.info(f'Command sync called by user {get_name(interaction.user)}.')
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run sync")
@@ -561,8 +564,10 @@ class GoCog(commands.Cog):
         logger.info('Command tree synced.')
 
 
-    @admin_group.command()
-    async def clear_commands(self, interaction: discord.Interaction):
+    @admin_group.command( 
+        description="Use with caution. Clears all the bot commands so they can be reloaded."
+        )
+    async def wipe_commands(self, interaction: discord.Interaction):
         logger.info(f'Command clear_commands alled by user {get_name(interaction.user)}.')
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run clear_commands")
