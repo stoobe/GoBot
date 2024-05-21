@@ -255,10 +255,10 @@ class GoCog(commands.Cog):
         try:    
             msg = self.do_player_info(player)    
             logger.info(msg)
-            await interaction.response.send_message(msg)                 
+            await interaction.response.send_message(msg, ephemeral=True)                 
         except DiscordUserError as err:
             logger.warn(f"player_info resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message) 
+            await interaction.response.send_message(err.message, ephemeral=True) 
 
 
 
