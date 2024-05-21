@@ -55,9 +55,11 @@ class PlayfabDB:
         #     raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
 
 
-    def read_players_by_ign(self, ign: str, session: Session) -> List[PfPlayer]:
+    def read_players_by_ign(self, ign: str, session: Session, limit=None) -> List[PfPlayer]:
         logger.info(f"Reading PfPlayer with {ign = } from DB")
         statement = select(PfPlayer).where(PfPlayer.ign.contains(ign.lower()))
+        if limit:
+            statement = statement.limit(limit)
         result = [_ for _ in session.exec(statement)]
         return result
 

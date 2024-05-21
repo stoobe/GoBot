@@ -112,13 +112,14 @@ class GoCog(commands.Cog):
             raise DiscordUserError(msg)
 
         # lookup the playfab_player by ign
+        # limit to one more than we'd return so we can tell the user if there are more
         pf_p = None
-        pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
+        pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session, limit=11)
         
         if len(pf_players) > 1:
             msg = f'Found {len(pf_players)} players with IGN = "{ign}".  You can run `/go set_ign` with the playfab ID instead of the IGN to select your account.'
             if len(pf_players) > 10:
-                pf_playeres = pf_players[:10]
+                pf_players = pf_players[:10]
                 msg += "\nHere are the first 10:"
             for p in pf_players:
                 if len(p.career_stats) == 0:

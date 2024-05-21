@@ -60,7 +60,7 @@ def test_read_players_by_ign_duplicate(pfdb, session, pf_p1, pf_p2, pf_p1v2):
     assert pf_p1v2.id in ids
     
 
-def test_read_players_by_ign_test_cases(pfdb, session, pf_p1, pf_p2):
+def test_read_players_by_ign_test_cases_and_limit(pfdb, session, pf_p1, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
 
@@ -93,7 +93,9 @@ def test_read_players_by_ign_test_cases(pfdb, session, pf_p1, pf_p2):
     players = pfdb.read_players_by_ign(ign="ign", session=session)
     assert len(players) == 2
     
-    
+    # same query but lmit to 1
+    players = pfdb.read_players_by_ign(ign="ign", session=session, limit=1)
+    assert len(players) == 1
 
     
 def test_player_exists(pfdb, session, pf_p1, pf_p2):
