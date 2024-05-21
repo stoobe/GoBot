@@ -321,17 +321,40 @@ def test_rename_team(gocog_preload, godb, session, du1, du2, du3):
 
 
 def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
+    
+    assert 3 == godb.player_count(session=session)
+    assert 0 == godb.team_count(session=session)
+    assert 0 == godb.roster_count(session=session)
+    assert 0 == godb.signup_count(session=session)
+    
+    #signup day 1
     gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
     
+    #signup day 2
+    gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date2, session=session)
+    assert 3 == godb.player_count(session=session)
+    assert 1 == godb.team_count(session=session)
+    assert 2 == godb.roster_count(session=session)
+    assert 2 == godb.signup_count(session=session)
+    
+    #cancel day 1
     gocog_preload.do_cancel(player=du2, date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
+    assert 1 == godb.signup_count(session=session)
+        
+    # cancel day 2
+    # this will test that the team is deleted when the last session is cancelled
+    gocog_preload.do_cancel(player=du2, date=date2, session=session)        
+    assert 3 == godb.player_count(session=session)
+    assert 0 == godb.roster_count(session=session)
     assert 0 == godb.signup_count(session=session)
+    assert 0 == godb.team_count(session=session)
 
 
 def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):

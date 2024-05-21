@@ -476,6 +476,11 @@ class GoCog(commands.Cog):
         tpsignup = tpsignups[0]
         session.refresh(tpsignup.team)
         session.refresh(tpsignup.player)
+        
+        if len(tpsignup.team.signups) == 0:
+            session.delete(tpsignup.team)
+            session.commit()
+            
         return tpsignup
 
         
