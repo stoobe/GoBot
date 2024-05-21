@@ -57,7 +57,7 @@ class PlayfabDB:
 
     def read_players_by_ign(self, ign: str, session: Session) -> List[PfPlayer]:
         logger.info(f"Reading PfPlayer with {ign = } from DB")
-        statement = select(PfPlayer).where(PfPlayer.ign == ign)
+        statement = select(PfPlayer).where(PfPlayer.ign.contains(ign.lower()))
         result = [_ for _ in session.exec(statement)]
         return result
 

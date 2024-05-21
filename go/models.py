@@ -112,6 +112,24 @@ class PfCareerStats(SQLModel, table=True):
     player: PfPlayer = Relationship(back_populates="career_stats")
     
     
+    def calc_wr(self) -> float:
+        if self.games == 0:
+            return 0.0
+        return self.wins / self.games
+    
+    
+    def calc_kpg(self) -> float:
+        if self.games == 0:
+            return 0.0
+        return 1.0 * self.kills / self.games
+    
+    
+    def calc_dpg(self) -> float:
+        if self.games == 0:
+            return 0.0
+        return 1.0 * self.damage / self.games
+    
+    
     def calc_rating(self) -> float:
         if self.games == 0:
             return 0.0

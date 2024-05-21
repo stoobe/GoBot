@@ -1,8 +1,10 @@
 from datetime import date 
 from datetime import date as datetype
 import pytest
+import _config
 
 from go.exceptions import DiscordUserError
+from go.go_cog import DiscordUser
 from go.playfab_api import as_player_id
 
 date1 = datetype(year=2022, month=1, day=1)
@@ -290,6 +292,32 @@ def test_signup_player_on_diff_team_same_day_fail(gocog_preload, session, du1, d
     gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
     with pytest.raises(DiscordUserError):
         gocog_preload.do_signup(players=[du2], team_name="tname2", date=date1, session=session)
+
+
+def test_signup_over_rating_cap(gocog_preload, session, du1, du2, du3):
+    orig = _config.go_rating_limits[3]
+    try:
+        _config.go_rating_limits[3] = 1
+        with pytest.raises(DiscordUserError):
+            gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
+    finally:
+        _config.go_rating_limits[3] = orig
+        
+
+def test_rename_team(gocog_preload, godb, session, du1, du2, du3):
+    name1 = "tname1"
+    gocog_preload.do_signup(players=[du1, du2], team_name=name1, date=date1, session=session)
+    team = godb.read_team_with_name(team_name=name1, session=session)
+    assert team.team_name == name1
+    
+    p1 = DiscordUser(id=du1.id, name=du1.name)
+    name2 = "tname222"
+    gocog_preload.do_rename_team(player=p1, new_team_name=name2, date=date1, session=session)
+    assert team.team_name == name2
+
+    # try to change the name for a date we're not signed up for
+    with pytest.raises(DiscordUserError):
+        gocog_preload.do_rename_team(player=p1, new_team_name=name2, date=date2, session=session)
 
 
 def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):

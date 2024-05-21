@@ -90,7 +90,12 @@ class GoDB:
             raise DataNotDeletedError("All GoPlayers were not deleted")
         
         
-    def create_team(self, team_name:str, go_players:List[GoPlayer], session: Session) -> GoTeam:
+    def create_team(self, 
+                    team_name:str, 
+                    go_players:List[GoPlayer], 
+                    session: Session,
+                    rating_limit:float = None
+                    ) -> GoTeam:
         logger.info(f"Creating GoTeam {team_name = } in DB")
         ids = {p.discord_id for p in go_players}
         team_size = len(go_players)
@@ -108,7 +113,10 @@ class GoDB:
             if player_rating is None:
                 team_rating = None
                 break
-            team_rating += player_rating            
+            team_rating += player_rating
+        
+        if rating_limit is not None and team_rating > rating_limit:
+            raise GoDbError(f"Team rating {team_rating:,.0f} exceeds the cap of {rating_limit:,.0f}")       
         
         team = GoTeam(team_name=team_name, team_size=team_size, team_rating=team_rating)
         session.add(team)

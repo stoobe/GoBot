@@ -15,7 +15,7 @@ import _config
 from go.logger import create_logger
 from go.go_db import GoDB, GoTeamPlayerSignup
 from go.models import GoPlayer, GoRatings, GoSchedule, GoSignup, GoTeam
-from go.playfab_api import as_player_id, is_playfab_str
+from go.playfab_api import as_player_id, as_playfab_id, is_playfab_str
 from go.playfab_db import PlayfabDB
 from go.exceptions import DiscordUserError, ErrorCode, GoDbError
 
@@ -39,6 +39,8 @@ def convert_user(user: discord.Member):
     return DiscordUser(id=user.id, name=get_name(user))
 
 
+
+
 class GoCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -58,6 +60,12 @@ class GoCog(commands.Cog):
     # async def my_top_command(self, interaction: discord.Interaction) -> None:
     #   """ /top-command """
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
+
+    def get_date_from_channel(self, channel_id:int, session: Session):
+        date = self.godb.get_session_date(session_id=channel_id, session=session)
+        if date is None:
+            raise DiscordUserError("Signups not enabled on this channel.")
+        return date
 
 
     def set_rating_if_needed(self, pf_player_id, session) -> float:
@@ -108,7 +116,15 @@ class GoCog(commands.Cog):
         pf_players = self.pfdb.read_players_by_ign(ign=ign, session=session)
         
         if len(pf_players) > 1:
-            msg = f'Found {len(pf_players)} players with IGN = "{ign}". Reach out to @GO_STOOOBE to help fix this.'
+            msg = f'Found {len(pf_players)} players with IGN = "{ign}".  You can run `/go set_ign` with the playfab ID instead of the IGN to select your account.'
+            if len(pf_players) > 10:
+                pf_playeres = pf_players[:10]
+                msg += "\nHere are the first 10:"
+            for p in pf_players:
+                if len(p.career_stats) == 0:
+                    continue
+                stats = p.career_stats[-1]
+                msg += f'\n* **{p.ign}** -- playfab ID= **{as_playfab_id(p.id)}**  games={stats.games:,.0f}  wr={stats.calc_wr()*100:.0f}%  kpg={stats.calc_kpg():.1f}  *(as of {stats.date.date()})*'
             raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
         elif len(pf_players) == 1:
             pf_p = pf_players[0]
@@ -195,26 +211,121 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message) 
 
 
+    def do_player_info(self, player: DiscordUser) -> str:
+        with Session(self.engine) as session:
+            go_p = self.godb.read_player(discord_id=player.id, session=session)
+            if go_p is None:
+                msg = f'{player.name} is not registered with GoBot'
+            else:
+                msg = f'- IGN: {go_p.pf_player.ign}\n'
+                
+                player_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)            
+                msg += f'- GO Rating: {player_rating:,.0f}\n'
+                
+                msg += f'- Playfab ID: {as_playfab_id(go_p.pf_player_id)}\n'
+
+                teams = [r.team for r in go_p.rosters]
+                msg += f'- Teams:\n'
+                for team in teams:
+                    igns = sorted([r.player.pf_player.ign for r in team.rosters])
+                    msg += f'  - {team.team_name} *({team.team_rating:,.0f})* -- {len(team.signups)} signups -- {", ".join(igns)}\n'
+            return msg
+
+
+    @go_group.command( 
+        description="Get info for a player"
+        )
+    async def player_info(self, 
+                    interaction: discord.Interaction, 
+                    user: discord.Member = None, 
+                    ):
+        
+        if user is None:
+            user = interaction.user
+            
+        player = convert_user(user)
+        logger.info(f"Running player_info({player.name})")
+        
+        try:    
+            msg = self.do_player_info(player)    
+            logger.info(msg)
+            await interaction.response.send_message(msg)                 
+        except DiscordUserError as err:
+            logger.warn(f"player_info resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
+
+
+
+    def do_rename_team(self, new_team_name:str, player: DiscordUser, date:datetype, session:Session) -> GoTeam:
+        tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
+        if len(tpsignups) == 0:
+            msg = f'Player {player.name} is not signed up on {date}.'
+            raise DiscordUserError(msg)
+
+        if len(tpsignups) > 1:
+            msg = f"Somehow player {player.name} has signed up more than once on {date}"
+            raise DiscordUserError(msg)
+
+        team = tpsignups[0].team
+        team.team_name = new_team_name
+        session.add(team)
+        session.commit()
+        return team
+        
+
+
+    @go_group.command( 
+        description="Rename team for this channel's signup"
+        )
+    async def rename_team(self, 
+                          interaction: discord.Interaction, 
+                          new_team_name: str,                     
+                          player: discord.Member = None, 
+                          ):
+        
+        if player is not None:
+            if interaction.user.id != _config.owner_id:
+                logger.warn(f"User {get_name(interaction.user)} tried to run rename_team for another player")
+                await interaction.response.send_message('You dont have permission to use this command for other players')
+                return    
+        else:
+            player = interaction.user        
+            
+        p = convert_user(player)
+        logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel.name})")
+        
+        try:
+            with Session(self.engine) as session:
+                date = self.get_date_from_channel(interaction.channel_id, session)
+                team = self.do_rename_team(new_team_name, p, date, session)
+                msg = f'Team name changed to {team.team_name}'
+                logger.info(msg)
+                await interaction.response.send_message(msg) 
+        except DiscordUserError as err:
+            logger.warn(f"rename_team resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
+
+
 
 
     def do_signup(self, players: List[DiscordUser], team_name: str, date: datetype, session: Session) -> GoSignup:
 
         if not team_name:
-            msg = f'Signup failed. Team name required.'
+            msg = f'Team name required.'
             raise DiscordUserError(msg)
 
         # make sure no players were skipped
         none_seen_at = None
         for i,p in enumerate(players):
             if p is not None and none_seen_at is not None:
-                msg = f'Signup failed. Player{i+1} included but Player{none_seen_at+1} was not.'
+                msg = f'Player{i+1} specified but Player{none_seen_at+1} was not.'
                 raise DiscordUserError(msg)
             if p is None:
                 none_seen_at = i
         
         players = [p for p in players if p is not None]
         if len(players) == 0:
-            msg = f'Signup failed. No players specified.'
+            msg = f'Must specify players for team.'
             raise DiscordUserError(msg)
         
         go_players = []
@@ -225,24 +336,24 @@ class GoCog(commands.Cog):
             go_player = self.godb.read_player(discord_id=player.id, session=session)
             go_players.append(go_player)
             if go_player is None or go_player.pf_player is None:
-                msg = f'Signup failed. Player {player.name} needs run `/go set_ign`.'
+                msg = f'Player {player.name} needs run `/go set_ign`.'
                 raise DiscordUserError(msg)
             
             # make sure all players have ratings
             player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
             if player_rating is None:
-                msg = f'Signup failed. Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this.'
+                msg = f'Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this.'
                 raise DiscordUserError(msg)
 
         if len(discord_ids) < len(players):
-            msg = f'Signup failed. The same player can not be on one team twice.'
+            msg = f'A player cannot be on the same team twice.'
             raise DiscordUserError(msg)
 
         go_team_by_roster = self.godb.read_team_with_roster(discord_ids=discord_ids, session=session)        
         
         # if the team name exists with a different name
         if go_team_by_roster and go_team_by_roster.team_name != team_name:
-            # msg = f'Signup failed. Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
+            # msg = f'Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
             # raise DiscordUserError(msg)
             team_name = go_team_by_roster.team_name
             logger.info(f'In do_signup: team already has name "{team_name}".  Using that name instead.')
@@ -255,7 +366,7 @@ class GoCog(commands.Cog):
         if go_team_by_name:
             if not go_team_by_roster or go_team_by_roster.id != go_team_by_name.id:
                 igns = [r.player.pf_player.ign for r in go_team_by_name.rosters]
-                msg = f'Signup failed. Team name "{go_team_by_name.team_name}" is already taken by players {", ".join(igns)}.'
+                msg = f'Team name "{go_team_by_name.team_name}" is already taken by team {", ".join(igns)}.'
                 raise DiscordUserError(msg)
                         
         # if it's an existing team
@@ -268,24 +379,28 @@ class GoCog(commands.Cog):
                         
             # signed up for too many dates?
             if len(signup_dates) >= 4:
-                msg = f'Signup failed. Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).'
+                msg = f'Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).'
                 raise DiscordUserError(msg)
 
-        # if it's a new team
-        if go_team_by_roster is None:
-            go_team_by_roster = self.godb.create_team(team_name=team_name, go_players=go_players, session=session)
-            
-        if go_team_by_roster is None:
-            msg = f'Could not create team in DB'
-            raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
-
-        rating_limit = _config.go_rating_limits.get(go_team_by_roster.team_size, None)
-        if rating_limit is not None and go_team_by_roster.team_rating > rating_limit:
-                msg = f'Signup failed. Team "{team_name}" rating {go_team_by_roster.team_rating:,.0f} is over the cap {rating_limit:,.0f}.'
-                raise DiscordUserError(msg)
+        rating_limit = _config.go_rating_limits.get(len(go_players), None)
 
         try:
-           signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
+            # if it's a new team
+            if go_team_by_roster is None:
+                go_team_by_roster = self.godb.create_team(team_name=team_name, go_players=go_players, 
+                                                          session=session, rating_limit=rating_limit)
+                
+            if go_team_by_roster is None:
+                msg = f'Could not create team in DB'
+                raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+
+            # rating_limit = _config.go_rating_limits.get(go_team_by_roster.team_size, None)
+            # if rating_limit is not None and go_team_by_roster.team_rating > rating_limit:
+            #         msg = f'Team "{team_name}" rating {go_team_by_roster.team_rating:,.0f} is over the cap {rating_limit:,.0f}.'
+            #         raise DiscordUserError(msg)
+
+            signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
+           
         except GoDbError as err:
             # godb.add_signup checks that the players aren't on a different team that day
             # convert that error to this one we expect to throw
@@ -309,23 +424,19 @@ class GoCog(commands.Cog):
         logger.info(f"GoCog.signup names ({interaction.channel}, {team_name}, {get_name(player1)}, {player2 and get_name(player2)}, {player3 and get_name(player3)})")
         logger.info(f"GoCog.signup ids   ({interaction.channel_id}, {team_name}, {player1.id}, {player2 and player2.id}, {player3 and player3.id})")
         
-        with Session(self.engine) as session:  
-            
-            date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
-            if date is None:
-                msg = "Signup failed -- This channel hasn't been assigned as session date."
-                logger.warn(msg)
-                await interaction.response.send_message(msg)
-                return
+        try:            
 
-            players = [convert_user(player1)]
-            players.append(convert_user(player2) if player2 else None)
-            players.append(convert_user(player3) if player3 else None)
-            
-            if team_name:
-                team_name = team_name.strip()
+            with Session(self.engine) as session:  
+                
+                date = self.get_date_from_channel(interaction.channel_id, session)
+
+                players = [convert_user(player1)]
+                players.append(convert_user(player2) if player2 else None)
+                players.append(convert_user(player3) if player3 else None)
+                
+                if team_name:
+                    team_name = team_name.strip()
                     
-            try:            
                 signup = self.do_signup(players=players, team_name=team_name, date=date, session=session)
 
                 team = signup.team
@@ -337,16 +448,15 @@ class GoCog(commands.Cog):
                 logger.info(msg)
                 await interaction.response.send_message(msg)
                 
-            except DiscordUserError as err:
-                logger.warn(f"signup resulted in error code {err.code}: {err.message}")
-                await interaction.response.send_message(err.message) 
+        except DiscordUserError as err:
+            logger.warn(f"signup resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
         
 
     def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoTeamPlayerSignup:
-        # with Session(self.engine) as session:  
         tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
         if len(tpsignups) == 0:
-            msg = f'Cancel failed. Player {player.name} is not signed up on {date}.'
+            msg = f'Player {player.name} is not signed up on {date}.'
             raise DiscordUserError(msg)
 
         if len(tpsignups) > 1:
@@ -375,16 +485,10 @@ class GoCog(commands.Cog):
         logger.info(f"GoCog.cancel names ({interaction.channel}, {player.name})")
         logger.info(f"GoCog.cancel ids   ({interaction.channel_id}, {player.id})")
 
-        with Session(self.engine) as session:  
-
-            date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
-            if date is None:
-                msg = "Cancel failed -- This channel hasn't been assigned as session date."
-                logger.warn(msg)
-                await interaction.response.send_message(msg)
-                return
+        try:            
+            with Session(self.engine) as session:  
+                date = self.get_date_from_channel(interaction.channel_id, session)  
                 
-            try:            
                 tpsignup = self.do_cancel(player=player, date=date, session=session)
                 
                 msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
@@ -392,9 +496,9 @@ class GoCog(commands.Cog):
                 logger.info(msg)
                 await interaction.response.send_message(msg)
             
-            except DiscordUserError as err:
-                logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
-                await interaction.response.send_message(err.message) 
+        except DiscordUserError as err:
+            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message) 
 
 
 
@@ -442,6 +546,7 @@ class GoCog(commands.Cog):
     async def sync(self, interaction: discord.Interaction):
         logger.info(f'Command sync called by user {get_name(interaction.user)}.')
         if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run sync")
             await interaction.response.send_message('You dont have permission to use this command!')
             return
 
@@ -457,6 +562,7 @@ class GoCog(commands.Cog):
     async def clear_commands(self, interaction: discord.Interaction):
         logger.info(f'Command clear_commands alled by user {get_name(interaction.user)}.')
         if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run clear_commands")
             await interaction.response.send_message('You dont have permission to use this command!')
             return
 
@@ -482,6 +588,7 @@ class GoCog(commands.Cog):
             ign: str
         ):
         if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run set_ign")
             await interaction.response.send_message('You dont have permission to use this command!')
             return
         
@@ -518,6 +625,7 @@ class GoCog(commands.Cog):
             date: str
         ):
         if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
             await interaction.response.send_message('You dont have permission to use this command!')
             return
         
@@ -547,6 +655,7 @@ class GoCog(commands.Cog):
             interaction: discord.Interaction
         ):
         if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run get_session_date")
             await interaction.response.send_message('You dont have permission to use this command!')
             return
         

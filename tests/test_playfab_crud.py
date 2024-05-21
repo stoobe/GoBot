@@ -58,7 +58,44 @@ def test_read_players_by_ign_duplicate(pfdb, session, pf_p1, pf_p2, pf_p1v2):
     ids = set([_.id for _ in players])
     assert pf_p1.id in ids
     assert pf_p1v2.id in ids
+    
 
+def test_read_players_by_ign_test_cases(pfdb, session, pf_p1, pf_p2):
+    pfdb.create_player(player=pf_p1, session=session)
+    pfdb.create_player(player=pf_p2, session=session)
+
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign, session=session)
+    assert len(players) == 1
+    player1 = players[0]
+    assert player1.id == pf_p1.id
+
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign.upper(), session=session)
+    assert len(players) == 1
+    player1 = players[0]
+    assert player1.id == pf_p1.id
+
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign.lower(), session=session)
+    assert len(players) == 1
+    player1 = players[0]
+    assert player1.id == pf_p1.id
+
+    # try searching for just the last few characters of the name
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign.lower()[2:], session=session)
+    assert len(players) == 1
+    player1 = players[0]
+    assert player1.id == pf_p1.id
+
+    # leave out the number and get both players
+    players = pfdb.read_players_by_ign(ign="IGN", session=session)
+    assert len(players) == 2
+
+    # same thing lower case
+    players = pfdb.read_players_by_ign(ign="ign", session=session)
+    assert len(players) == 2
+    
+    
+
+    
 def test_player_exists(pfdb, session, pf_p1, pf_p2):
     assert pfdb.player_exists(pf_player_id=pf_p1.id, session=session) == False
     
