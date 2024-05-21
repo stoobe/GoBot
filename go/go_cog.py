@@ -227,6 +227,8 @@ class GoCog(commands.Cog):
                 teams = [r.team for r in go_p.rosters]
                 msg += f'- Teams:\n'
                 for team in teams:
+                    # incase it's missing from the DB for some reason 
+                    team_rating = team.team_rating or 0 
                     igns = sorted([r.player.pf_player.ign for r in team.rosters])
                     msg += f'  - {team.team_name} *({team.team_rating:,.0f})* -- {len(team.signups)} signups -- {", ".join(igns)}\n'
             return msg
