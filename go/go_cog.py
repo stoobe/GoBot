@@ -228,6 +228,7 @@ class GoCog(commands.Cog):
                 
                 msg += f'- Playfab ID: {as_playfab_id(go_p.pf_player_id)}\n'
 
+                signups = []
                 teams = [r.team for r in go_p.rosters]
                 msg += f'- Teams:\n'
                 for team in teams:
@@ -235,6 +236,13 @@ class GoCog(commands.Cog):
                     team_rating = team.team_rating or 0 
                     igns = sorted([r.player.pf_player.ign for r in team.rosters])
                     msg += f'  - {team.team_name} *({team.team_rating:,.0f})* -- {len(team.signups)} signups -- {", ".join(igns)}\n'
+                    for signup in team.signups:
+                        signups.append(signup)
+                        
+                msg += f'- Sessions:\n'
+                for signup in signups:
+                    msg += f'  - {signup.session_date} -- {signup.team.team_name}\n'
+                    
             return msg
 
 
