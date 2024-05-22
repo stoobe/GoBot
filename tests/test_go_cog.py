@@ -1,8 +1,8 @@
-from datetime import date
 from datetime import date as datetype
-import pytest
-import _config
 
+import pytest
+
+import _config
 from go.exceptions import DiscordUserError
 from go.go_cog import DiscordUser
 from go.playfab_api import as_player_id
@@ -18,12 +18,10 @@ def test_get_rating_default(godb, pfdb, gocog, session, pf_p1, stats_p1_1):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.add_career_stats(stats=stats_p1_1, session=session)
 
-    go_rating = gocog.set_rating_if_needed(
-        pf_player_id=pf_p1.id, session=session)
+    go_rating = gocog.set_rating_if_needed(pf_player_id=pf_p1.id, session=session)
     assert go_rating == stats_p1_1.calc_rating()
 
-    go_rating2 = godb.get_official_rating(
-        pf_player_id=pf_p1.id, session=session)
+    go_rating2 = godb.get_official_rating(pf_player_id=pf_p1.id, session=session)
     assert go_rating == go_rating2
 
 
@@ -156,8 +154,7 @@ def test_signup_with_missing_rating_fail(gocog, godb, pfdb, session, du1, pf_p1,
     # gocog.set_rating_if_needed(pf_p1.id, session)
 
     with pytest.raises(DiscordUserError):
-        signup = gocog.do_signup(
-            players=[du1], team_name="tname1", date=date1, session=session)
+        signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
 
 
 def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
@@ -169,8 +166,7 @@ def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
     pfdb.add_career_stats(stats=stats_p1_1, session=session)
     gocog.set_rating_if_needed(pf_p1.id, session)
 
-    signup = gocog.do_signup(
-        players=[du1], team_name="tname1", date=date1, session=session)
+    signup = gocog.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
     assert 1 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 1 == godb.roster_count(session=session)
@@ -195,8 +191,7 @@ def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2, stats_p1
     gocog.set_rating_if_needed(pf_p1.id, session)
     gocog.set_rating_if_needed(pf_p2.id, session)
 
-    signup = gocog.do_signup(
-        players=[du1, du2], team_name="tname2", date=date1, session=session)
+    signup = gocog.do_signup(players=[du1, du2], team_name="tname2", date=date1, session=session)
     assert 2 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
@@ -212,8 +207,7 @@ def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2, stats_p1
 
 def test_signup_trio(gocog_preload, session, du1, du2, du3):
     godb = gocog_preload.godb
-    signup = gocog_preload.do_signup(
-        players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
@@ -226,8 +220,7 @@ def test_signup_trio(gocog_preload, session, du1, du2, du3):
     assert len(team.signups) == 1
     assert len(team.rosters) == 3
 
-    signup = gocog_preload.do_signup(
-        players=[du1, du2, du3], team_name="tname3", date=date2, session=session)
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date2, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
@@ -242,16 +235,13 @@ def test_signup_trio(gocog_preload, session, du1, du2, du3):
 
 def test_signup_missing_user_fails(gocog_preload, session, du1, du2, du3):
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du1, None, du3], team_name="tname3", date=date1, session=session)
+        gocog_preload.do_signup(players=[du1, None, du3], team_name="tname3", date=date1, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[None, du2, du3], team_name="tname3", date=date1, session=session)
+        gocog_preload.do_signup(players=[None, du2, du3], team_name="tname3", date=date1, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[None, None], team_name="tname3", date=date1, session=session)
+        gocog_preload.do_signup(players=[None, None], team_name="tname3", date=date1, session=session)
 
 
 def test_signup_missing_set_ign_fails(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2, du3, pf_p3):
@@ -263,60 +253,47 @@ def test_signup_missing_set_ign_fails(gocog, godb, pfdb, session, du1, pf_p1, du
     # gocog.do_set_ign(player=du3, ign=pf_p3.ign, session=session)
 
     with pytest.raises(DiscordUserError):
-        gocog.do_signup(players=[du1, du2, du3],
-                        team_name="tname3", date=date1, session=session)
+        gocog.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
 
 
 def test_signup_dup_user_fails(gocog_preload, session, du1, du2, du3):
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du1, du1, du3], team_name="tname3", date=date1, session=session)
+        gocog_preload.do_signup(players=[du1, du1, du3], team_name="tname3", date=date1, session=session)
 
 
 def test_signup_name_change_uses_old_name(gocog_preload, session, du1, du2, du3):
+    signup = gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
     signup = gocog_preload.do_signup(
-        players=[du1, du2, du3], team_name="tname3", date=date1, session=session)
-    signup = gocog_preload.do_signup(
-        players=[du1, du2, du3], team_name="SAME TEAM DIFF NAME", date=date2, session=session)
+        players=[du1, du2, du3], team_name="SAME TEAM DIFF NAME", date=date2, session=session
+    )
     assert signup.team.team_name == "tname3"
 
 
 def test_signup_name_collision_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name="SAME NAME DIFF TEAM", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name="SAME NAME DIFF TEAM", date=date1, session=session)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du3], team_name="SAME NAME DIFF TEAM", date=date2, session=session)
+        gocog_preload.do_signup(players=[du3], team_name="SAME NAME DIFF TEAM", date=date2, session=session)
 
 
 def test_signup_same_day_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(
-        players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
+        gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
 
 
 def test_signup_too_many_signups_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(
-        players=[du1], team_name="tname1", date=date1, session=session)
-    gocog_preload.do_signup(
-        players=[du1], team_name="tname1", date=date2, session=session)
-    gocog_preload.do_signup(
-        players=[du1], team_name="tname1", date=date3, session=session)
-    gocog_preload.do_signup(
-        players=[du1], team_name="tname1", date=date4, session=session)
+    gocog_preload.do_signup(players=[du1], team_name="tname1", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1], team_name="tname1", date=date2, session=session)
+    gocog_preload.do_signup(players=[du1], team_name="tname1", date=date3, session=session)
+    gocog_preload.do_signup(players=[du1], team_name="tname1", date=date4, session=session)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du1], team_name="tname1", date=date5, session=session)
+        gocog_preload.do_signup(players=[du1], team_name="tname1", date=date5, session=session)
 
 
 def test_signup_player_on_diff_team_same_day_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name="tname1", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(
-            players=[du2], team_name="tname2", date=date1, session=session)
+        gocog_preload.do_signup(players=[du2], team_name="tname2", date=date1, session=session)
 
 
 def test_signup_over_rating_cap(gocog_preload, session, du1, du2, du3):
@@ -324,29 +301,25 @@ def test_signup_over_rating_cap(gocog_preload, session, du1, du2, du3):
     try:
         _config.go_rating_limits[3] = 1
         with pytest.raises(DiscordUserError):
-            gocog_preload.do_signup(
-                players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
+            gocog_preload.do_signup(players=[du1, du2, du3], team_name="tname1", date=date1, session=session)
     finally:
         _config.go_rating_limits[3] = orig
 
 
 def test_rename_team(gocog_preload, godb, session, du1, du2, du3):
     name1 = "tname1"
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name=name1, date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name=name1, date=date1, session=session)
     team = godb.read_team_with_name(team_name=name1, session=session)
     assert team.team_name == name1
 
     p1 = DiscordUser(id=du1.id, name=du1.name)
     name2 = "tname222"
-    gocog_preload.do_rename_team(
-        player=p1, new_team_name=name2, date=date1, session=session)
+    gocog_preload.do_rename_team(player=p1, new_team_name=name2, date=date1, session=session)
     assert team.team_name == name2
 
     # try to change the name for a date we're not signed up for
     with pytest.raises(DiscordUserError):
-        gocog_preload.do_rename_team(
-            player=p1, new_team_name=name2, date=date2, session=session)
+        gocog_preload.do_rename_team(player=p1, new_team_name=name2, date=date2, session=session)
 
 
 def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
@@ -357,16 +330,14 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
     assert 0 == godb.signup_count(session=session)
 
     # signup day 1
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name="tname1", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
 
     # signup day 2
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name="tname1", date=date2, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date2, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
@@ -389,8 +360,7 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
 
 
 def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
-    gocog_preload.do_signup(
-        players=[du1, du2], team_name="tname1", date=date1, session=session)
+    gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
     with pytest.raises(DiscordUserError):
         gocog_preload.do_cancel(player=du3, date=date1, session=session)
     with pytest.raises(DiscordUserError):

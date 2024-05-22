@@ -1,13 +1,12 @@
 import argparse
+import csv
+
 from pydantic import BaseModel
 from sqlalchemy import create_engine
-from sqlmodel import SQLModel, Session
-
-import csv
-from go.models import GoRatings
+from sqlmodel import Session, SQLModel
 
 import _config
-
+from go.models import GoRatings
 from go.playfab_api import PlayfabApi, as_player_id
 from go.playfab_db import PlayfabDB
 
@@ -20,12 +19,9 @@ class Row(BaseModel):
 def main():
 
     parser = argparse.ArgumentParser(description="sample argument parser")
-    parser.add_argument("--season", type=str, required=True,
-                        help='something like "GOP1 S10"')
-    parser.add_argument("--rating_type", type=str,
-                        required=True, help='something like "combined"')
-    parser.add_argument("--file", type=str, required=True,
-                        help='csv file, requires field pfid"')
+    parser.add_argument("--season", type=str, required=True, help='something like "GOP1 S10"')
+    parser.add_argument("--rating_type", type=str, required=True, help='something like "combined"')
+    parser.add_argument("--file", type=str, required=True, help='csv file, requires field pfid"')
     parser.add_argument("--max", type=int, default=None, required=False)
     args = parser.parse_args()
 
@@ -40,7 +36,7 @@ def main():
     success_count = 0
     fail_count = 0
 
-    with open(args.file, mode='r') as file:
+    with open(args.file, mode="r") as file:
 
         csv_reader = csv.DictReader(f=file)
 
@@ -51,21 +47,21 @@ def main():
                     break
                 print()
                 print(i, csv_row)
-                row = Row(**csv_row)
+                row = Row(**csv_row)  # type: ignore
                 pf_player_id = as_player_id(row.pfid)
 
                 if not pfdb.player_exists(pf_player_id=pf_player_id, session=session):
                     print(f"get_player_from_account_info for pfid: {row.pfid}")
-                    pf_p = pfapi.get_player_from_account_info(
-                        player_id=pf_player_id)
+                    pf_p = pfapi.get_player_from_account_info(player_id=pf_player_id)
                     if pf_p is None:
                         fail_count += 1
                         continue
                     session.add(pf_p)
                     session.commit()
 
-                rating = GoRatings(pf_player_id=pf_player_id, season=args.season,
-                                   rating_type=args.rating_type, go_rating=row.go_rating)
+                rating = GoRatings(
+                    pf_player_id=pf_player_id, season=args.season, rating_type=args.rating_type, go_rating=row.go_rating
+                )
                 print(i, rating)
                 session.add(rating)
                 if i % 100 == 0:
@@ -76,5 +72,5 @@ def main():
             session.commit()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

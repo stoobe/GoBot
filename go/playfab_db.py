@@ -1,12 +1,12 @@
-import os
-from typing import List
-from datetime import datetime, timedelta, timezone
-from sqlmodel import SQLModel, Session, delete, func, select
+from datetime import datetime, timedelta
+from typing import List, Optional
+
+from sqlmodel import Session, delete, func, select
+
+import _config
 from go.exceptions import DataNotDeletedError, PlayerNotFoundError
 from go.logger import create_logger
-
 from go.models import PfCareerStats, PfIgnHistory, PfPlayer
-import _config
 
 logger = create_logger(__name__)
 
@@ -25,11 +25,7 @@ class PlayfabDB:
         most_recent_ign = ign_hist and ign_hist[-1].ign or None
 
         if most_recent_ign != player.ign:
-            ign_row = PfIgnHistory(
-                pf_player_id=player.id,
-                date=datetime.now(),
-                ign=player.ign
-            )
+            ign_row = PfIgnHistory(pf_player_id=player.id, date=datetime.now(), ign=player.ign)
             session.add(ign_row)
 
         session.commit()
@@ -39,42 +35,39 @@ class PlayfabDB:
         result = session.exec(statement).first()
         return result is not None
 
-    def read_player(self, pf_player_id: int, session: Session) -> PfPlayer:
+    def read_player(self, pf_player_id: int, session: Session) -> Optional[PfPlayer]:
         logger.info(f"Reading PfPlayer with Playfab ID {pf_player_id} from DB")
         statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
-        result: PfPlayer = session.exec(statement).first()
+        result = session.exec(statement).first()
         return result
-        # if result:
-        #     return result
-        # else:
-        #     logger.error("PfPlayer not found")
-        #     raise PlayerNotFoundError(f"PfPlayer with ID {pf_player_id} not found")
 
     def read_players_by_ign(self, ign: str, session: Session, limit=None) -> List[PfPlayer]:
         logger.info(f"Reading PfPlayer with {ign = } from DB")
-        statement = select(PfPlayer).where(PfPlayer.ign.contains(ign.lower()))
+        statement = select(PfPlayer).where(PfPlayer.ign.contains(ign.lower()))  # type: ignore
         if limit:
             statement = statement.limit(limit)
         result = [_ for _ in session.exec(statement)]
         return result
 
     def player_count(self, session):
-        statement = select(func.count(PfPlayer.id))
+        statement = select(func.count(PfPlayer.id))  # type: ignore
         return session.exec(statement).one()
 
     def update_player(
         self,
         session: Session,
-        pf_player_id: str,
-        ign: str = None,
-        last_login: datetime = None,
-        avatar_url: str = None,
+        pf_player_id: int,
+        ign: Optional[str] = None,
+        last_login: Optional[datetime] = None,
+        avatar_url: Optional[str] = None,
     ) -> None:
 
         logger.info(f"Updating PfPlayer with ID {pf_player_id} in DB")
 
         # Get the player, can throw PlayerNotFoundError
         player = self.read_player(pf_player_id=pf_player_id, session=session)
+        if player is None:
+            raise PlayerNotFoundError(f"Player with {pf_player_id = } not found")
 
         if ign:
             player.ign = ign
@@ -104,17 +97,15 @@ class PlayfabDB:
 
         # Confirm the deletion
         if not self.player_exists(pf_player_id=pf_player_id, session=session):
-            logger.info(
-                f"PfPlayer with {pf_player_id = } was confirmed deleted")
+            logger.info(f"PfPlayer with {pf_player_id = } was confirmed deleted")
         else:
-            raise DataNotDeletedError(
-                f"PfPlayer with {pf_player_id = } was not deleted")
+            raise DataNotDeletedError(f"PfPlayer with {pf_player_id = } was not deleted")
 
     def delete_all_players(self, session: Session) -> None:
         logger.info("Deleting all PfPlayers from DB")
 
         statement = delete(PfPlayer)
-        session.exec(statement)
+        session.exec(statement)  # type: ignore
 
         # Confirm the deletion
         if self.player_count(session=session) == 0:
@@ -148,35 +139,33 @@ class PlayfabDB:
             raise DataNotDeletedError("All Stats were not deleted")
 
     def check_update_ign_history(self, player: PfPlayer, session: Session) -> None:
-        """ 
-            Check if player.ign is new. If so create a new IgnHistory entry.
+        """
+        Check if player.ign is new. If so create a new IgnHistory entry.
         """
         ign_hist = player.ign_history
         ign_hist.sort(key=lambda x: x.date)
         most_recent_ign = ign_hist and ign_hist[-1].ign or None
 
         if most_recent_ign != player.ign:
-            ign_row = PfIgnHistory(
-                pf_player_id=player.id,
-                date=datetime.now(),
-                ign=player.ign
-            )
+            ign_row = PfIgnHistory(pf_player_id=player.id, date=datetime.now(), ign=player.ign)
             session.add(ign_row)
 
         session.commit()
 
     def ign_history_count(self, session):
-        statement = select(func.count(PfIgnHistory.ign))
+        statement = select(func.count(PfIgnHistory.ign))  # type: ignore
         return session.exec(statement).one()
 
-    def calc_rating_from_stats(self, pf_player_id, session: Session, snapshot_date: datetime = None) -> float:
+    def calc_rating_from_stats(
+        self, pf_player_id, session: Session, snapshot_date: Optional[datetime] = None
+    ) -> Optional[float]:
         if snapshot_date is None:
             snapshot_date = _config.go_rating_snapshot_date
 
-        statement = select(PfCareerStats).where(
-            PfCareerStats.pf_player_id == pf_player_id)
+        statement = select(PfCareerStats).where(PfCareerStats.pf_player_id == pf_player_id)
         statement = statement.where(PfCareerStats.date <= snapshot_date).order_by(
-            PfCareerStats.date.desc())
+            PfCareerStats.date.desc()  # type: ignore
+        )
         most_recent = None
         previous_snapshop = None
         for rating in session.exec(statement):

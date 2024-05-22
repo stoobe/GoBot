@@ -1,16 +1,16 @@
-from typing import Generator
 from datetime import datetime
+from typing import Generator
 
 import pytest
-from sqlalchemy import Engine
-from sqlmodel import SQLModel, Session, create_engine
 from discord.ext import commands
-from go.go_cog import DiscordUser, GoCog
+from sqlalchemy import Engine
+from sqlmodel import Session, SQLModel, create_engine
 
-from go.playfab_db import PlayfabDB
-from go.go_db import GoDB
-from go.models import GoPlayer, GoTeam, PfPlayer, PfCareerStats, PfIgnHistory
 import _config
+from go.go_cog import DiscordUser, GoCog
+from go.go_db import GoDB
+from go.models import GoPlayer, GoTeam, PfCareerStats, PfPlayer
+from go.playfab_db import PlayfabDB
 
 
 @pytest.fixture
@@ -18,6 +18,7 @@ def go_p1() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
         discord_id=101,
         discord_name="dn1",
+        pf_player_id=None,
     )
     yield player
 
@@ -27,6 +28,7 @@ def go_p2() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
         discord_id=102,
         discord_name="dn2",
+        pf_player_id=None,
     )
     yield player
 
@@ -36,26 +38,27 @@ def go_p3() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
         discord_id=103,
         discord_name="dn3",
+        pf_player_id=None,
     )
     yield player
 
 
 @pytest.fixture
 def go_team1() -> Generator[GoTeam, None, None]:
-    player = GoTeam(
+    t = GoTeam(
         team_name="tn1",
-        player_count=1,
+        team_size=1,
     )
-    yield player
+    yield t
 
 
 @pytest.fixture
 def go_team2() -> Generator[GoTeam, None, None]:
-    player = GoTeam(
+    t = GoTeam(
         team_name="tn2",
-        player_count=2,
+        team_size=2,
     )
-    yield player
+    yield t
 
 
 @pytest.fixture
@@ -282,7 +285,20 @@ def gocog(godb, pfdb, engine, scope="function"):
 
 
 @pytest.fixture
-def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, stats_p1_1, stats_p2_1, stats_p3_1, scope="function"):
+def gocog_preload(
+    gocog,
+    session,
+    du1,
+    du2,
+    du3,
+    pf_p1,
+    pf_p2,
+    pf_p3,
+    stats_p1_1,
+    stats_p2_1,
+    stats_p3_1,
+    scope="function",
+):
     gocog.pfdb.create_player(player=pf_p1, session=session)
     gocog.pfdb.create_player(player=pf_p2, session=session)
     gocog.pfdb.create_player(player=pf_p3, session=session)
@@ -295,7 +311,9 @@ def gocog_preload(gocog, session, du1, du2, du3, pf_p1, pf_p2, pf_p3, stats_p1_1
     gocog.set_rating_if_needed(pf_p1.id, session)
     gocog.set_rating_if_needed(pf_p2.id, session)
     gocog.set_rating_if_needed(pf_p3.id, session)
-
+    session.refresh(pf_p1)
+    session.refresh(pf_p2)
+    session.refresh(pf_p3)
     yield gocog
 
 

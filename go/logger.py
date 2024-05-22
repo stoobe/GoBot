@@ -1,5 +1,3 @@
-from queue import SimpleQueue
-import asyncio
 import logging
 import logging.handlers
 
@@ -7,9 +5,8 @@ import _config
 
 is_logger_setup = set()
 
-dt_fmt = '%Y-%m-%d %H:%M:%S'
-formatter = logging.Formatter(
-    '{asctime}.{msecs:03.0f}  {levelname:<8}  {name:<14} -- {message}', dt_fmt, style='{')
+dt_fmt = "%Y-%m-%d %H:%M:%S"
+formatter = logging.Formatter("{asctime}.{msecs:03.0f}  {levelname:<8}  {name:<14} -- {message}", dt_fmt, style="{")
 
 
 def create_logger(logger_name: str = __name__):
