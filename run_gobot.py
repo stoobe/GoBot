@@ -6,11 +6,11 @@ from sqlalchemy import Engine
 from sqlmodel import SQLModel, create_engine
 
 import _config
-import go.logger
-from go.go_bot import GoBot
-from go.go_db import GoDB
-from go.logger import create_logger
-from go.playfab_db import PlayfabDB
+import go.bot.logger
+from go.bot.go_bot import GoBot
+from go.bot.go_db import GoDB
+from go.bot.logger import create_logger
+from go.bot.playfab_db import PlayfabDB
 
 logger = create_logger(__name__)
 

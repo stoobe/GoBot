@@ -6,9 +6,9 @@ from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 
 import _config
-from go.models import GoRatings
-from go.playfab_api import PlayfabApi, as_player_id
-from go.playfab_db import PlayfabDB
+from go.bot.models import GoRatings
+from go.bot.playfab_api import PlayfabApi, as_player_id
+from go.bot.playfab_db import PlayfabDB
 
 
 class Row(BaseModel):

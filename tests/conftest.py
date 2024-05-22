@@ -7,10 +7,10 @@ from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
 import _config
-from go.go_cog import DiscordUser, GoCog
-from go.go_db import GoDB
-from go.models import GoPlayer, GoTeam, PfCareerStats, PfPlayer
-from go.playfab_db import PlayfabDB
+from go.bot.go_cog import DiscordUser, GoCog
+from go.bot.go_db import GoDB
+from go.bot.models import GoPlayer, GoTeam, PfCareerStats, PfPlayer
+from go.bot.playfab_db import PlayfabDB
 
 
 @pytest.fixture

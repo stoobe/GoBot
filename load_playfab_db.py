@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 from sqlmodel import Session, SQLModel, create_engine
 
 import _config
-from go.logger import create_logger
-from go.models import PfPlayer
-from go.playfab_api import PlayfabApi
-from go.playfab_db import PlayfabDB
+from go.bot.logger import create_logger
+from go.bot.models import PfPlayer
+from go.bot.playfab_api import PlayfabApi
+from go.bot.playfab_db import PlayfabDB
 
 logger = create_logger(__name__)
 

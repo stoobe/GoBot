@@ -3,12 +3,12 @@ from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
 import _config
-import go.logger
-from go.exceptions import DiscordUserError
-from go.go_cog import DiscordUser, GoCog
-from go.go_db import GoDB
-from go.logger import create_logger
-from go.playfab_db import PlayfabDB
+import go.bot.logger
+from go.bot.exceptions import DiscordUserError
+from go.bot.go_cog import DiscordUser, GoCog
+from go.bot.go_db import GoDB
+from go.bot.logger import create_logger
+from go.bot.playfab_db import PlayfabDB
 
 logger = create_logger(__name__)
 

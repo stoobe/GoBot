@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
-import pytest
-from go.models import PfPlayer
 
-from go.playfab_api import is_playfab_str
-from go.playfab_db import PfIgnHistory
-from go.exceptions import PlayerNotFoundError
+import pytest
+
+from go.bot.exceptions import PlayerNotFoundError
+from go.bot.models import PfPlayer
+from go.bot.playfab_api import is_playfab_str
+from go.bot.playfab_db import PfIgnHistory
 
 
 def test_create_and_read_player(pfdb, session, pf_p1):
@@ -81,8 +82,7 @@ def test_read_players_by_ign_test_cases_and_limit(pfdb, session, pf_p1, pf_p2):
     assert player1.id == pf_p1.id
 
     # try searching for just the last few characters of the name
-    players = pfdb.read_players_by_ign(
-        ign=pf_p1.ign.lower()[2:], session=session)
+    players = pfdb.read_players_by_ign(ign=pf_p1.ign.lower()[2:], session=session)
     assert len(players) == 1
     player1 = players[0]
     assert player1.id == pf_p1.id
@@ -171,29 +171,25 @@ def test_delete_all_players(pfdb, session, pf_p1, pf_p2):
     assert 0 == pfdb.player_count(session=session)
 
 
-@pytest.mark.parametrize("ign, last_login, avatar_url",
-                         [
-                             (None, None, None),
-                             ("IGN111", None, None),
-                             (None, datetime(2023, 3, 3, 3, 3, 3), None),
-                             (None, None, "av.url"),
-                             ("IGN111", datetime(2023, 3, 3, 3, 3, 3), None),
-                             ("IGN111", None, "av.url"),
-                             (None, datetime(2023, 3, 3, 3, 3, 3), "av.url"),
-                             ("IGN111", datetime(2023, 3, 3, 3, 3, 3), "av.url"),
-                         ])
+@pytest.mark.parametrize(
+    "ign, last_login, avatar_url",
+    [
+        (None, None, None),
+        ("IGN111", None, None),
+        (None, datetime(2023, 3, 3, 3, 3, 3), None),
+        (None, None, "av.url"),
+        ("IGN111", datetime(2023, 3, 3, 3, 3, 3), None),
+        ("IGN111", None, "av.url"),
+        (None, datetime(2023, 3, 3, 3, 3, 3), "av.url"),
+        ("IGN111", datetime(2023, 3, 3, 3, 3, 3), "av.url"),
+    ],
+)
 def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
     # Write Player to DB
     pfdb.create_player(player=pf_p1, session=session)
 
     # Update Player
-    pfdb.update_player(
-        session=session,
-        pf_player_id=pf_p1.id,
-        ign=ign,
-        last_login=last_login,
-        avatar_url=avatar_url
-    )
+    pfdb.update_player(session=session, pf_player_id=pf_p1.id, ign=ign, last_login=last_login, avatar_url=avatar_url)
 
     # Read Player from DB
     player = pfdb.read_player(pf_player_id=pf_p1.id, session=session)
@@ -218,9 +214,7 @@ def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
         assert player.avatar_url == pf_p1.avatar_url
 
 
-def test_career_stats_create_and_read(pfdb, session,
-                                      pf_p1, stats_p1_1, stats_p1_2,
-                                      pf_p2, stats_p2_1, stats_p2_2):
+def test_career_stats_create_and_read(pfdb, session, pf_p1, stats_p1_1, stats_p1_2, pf_p2, stats_p2_1, stats_p2_2):
     pfdb.create_player(player=pf_p1, session=session)
     assert 1 == pfdb.player_count(session=session)
 
@@ -246,9 +240,7 @@ def test_career_stats_create_and_read(pfdb, session,
     assert len(p2stats) == 2
 
 
-def test_career_stats_deletes(pfdb, session,
-                              pf_p1, stats_p1_1, stats_p1_2,
-                              pf_p2, stats_p2_1, stats_p2_2):
+def test_career_stats_deletes(pfdb, session, pf_p1, stats_p1_1, stats_p1_2, pf_p2, stats_p2_1, stats_p2_2):
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.add_career_stats(stats=stats_p1_1, session=session)
     pfdb.add_career_stats(stats=stats_p1_2, session=session)
@@ -292,12 +284,14 @@ def test_career_stats_deletes(pfdb, session,
     assert len(p2stats) == 0
 
 
-@pytest.mark.parametrize("igns",
-                         [
-                             (["IGN2"]),
-                             (["IGN2 IGN3 IGN4"]),
-                             (["IGN2 IGN3 IGN2"]),
-                         ])
+@pytest.mark.parametrize(
+    "igns",
+    [
+        (["IGN2"]),
+        (["IGN2 IGN3 IGN4"]),
+        (["IGN2 IGN3 IGN2"]),
+    ],
+)
 def test_ign_hist_updates(pfdb, session, pf_p1, igns):
     # Write Player to DB
     pfdb.create_player(player=pf_p1, session=session)
@@ -422,11 +416,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
 
     one_hour_ago = datetime.now() - timedelta(hours=1)
     # try adding an older ign and see if sorting still works:
-    ign_row = PfIgnHistory(
-        pf_player_id=pf_p1.id,
-        date=one_hour_ago,
-        ign="IGNOLD"
-    )
+    ign_row = PfIgnHistory(pf_player_id=pf_p1.id, date=one_hour_ago, ign="IGNOLD")
     session.add(ign_row)
     session.commit()
     session.refresh(player)
@@ -474,9 +464,20 @@ def test_stats_calc_rating(pfdb, session, pf_p1, pf_p2, stats_p1_1, stats_p1_2, 
         diff_p2_p1 = stats_p2_1.calc_difference(stats_p1_zeros)
 
 
-def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
-                                stats_p1_1, stats_p1_2, stats_p1_3, stats_p1_4, stats_p1_zeros,
-                                stats_p2_1, stats_p2_2, stats_p2_3):
+def test_calc_rating_from_stats(
+    pfdb,
+    session,
+    pf_p1,
+    pf_p2,
+    stats_p1_1,
+    stats_p1_2,
+    stats_p1_3,
+    stats_p1_4,
+    stats_p1_zeros,
+    stats_p2_1,
+    stats_p2_2,
+    stats_p2_3,
+):
 
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
@@ -495,20 +496,16 @@ def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
     diff_3_2 = stats_p1_3.calc_difference(stats_p1_2)
     diff_4_2 = stats_p1_4.calc_difference(stats_p1_2)
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p1.id, snapshot_date=stats_p1_1.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_1.date, session=session)
     assert rating == stats_p1_1.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p1.id, snapshot_date=stats_p1_2.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_2.date, session=session)
     assert rating == stats_p1_2.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p1.id, snapshot_date=stats_p1_3.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_3.date, session=session)
     assert rating == diff_3_2.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p1.id, snapshot_date=stats_p1_4.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p1.id, snapshot_date=stats_p1_4.date, session=session)
     assert rating == diff_4_2.calc_rating()
 
     # Player 2:
@@ -516,18 +513,15 @@ def test_calc_rating_from_stats(pfdb, session, pf_p1, pf_p2,
     diff_2_1 = stats_p2_2.calc_difference(stats_p2_1)
     diff_3_2 = stats_p2_3.calc_difference(stats_p2_2)
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p2.id, snapshot_date=stats_p2_2.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_2.date, session=session)
     assert rating == diff_2_1.calc_rating()
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=pf_p2.id, snapshot_date=stats_p2_3.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=pf_p2.id, snapshot_date=stats_p2_3.date, session=session)
     assert rating == diff_3_2.calc_rating()
 
     # Missing Player
 
-    rating = pfdb.calc_rating_from_stats(
-        pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
+    rating = pfdb.calc_rating_from_stats(pf_player_id=1234, snapshot_date=stats_p2_3.date, session=session)
     assert rating is None
 
 

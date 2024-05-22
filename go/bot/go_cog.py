@@ -9,13 +9,13 @@ from pydantic import BaseModel
 from sqlmodel import Session
 
 import _config
-from go.exceptions import DiscordUserError, ErrorCode, GoDbError
-from go.go_bot import GoBot
-from go.go_db import GoDB, GoTeamPlayerSignup
-from go.logger import create_logger
-from go.models import GoPlayer, GoRatings, GoSignup, GoTeam
-from go.playfab_api import as_player_id, as_playfab_id, is_playfab_str
-from go.playfab_db import PlayfabDB
+from go.bot.exceptions import DiscordUserError, ErrorCode, GoDbError
+from go.bot.go_bot import GoBot
+from go.bot.go_db import GoDB, GoTeamPlayerSignup
+from go.bot.logger import create_logger
+from go.bot.models import GoPlayer, GoRatings, GoSignup, GoTeam
+from go.bot.playfab_api import as_player_id, as_playfab_id, is_playfab_str
+from go.bot.playfab_db import PlayfabDB
 
 MY_GUILD = discord.Object(id=_config.guild_id)
 

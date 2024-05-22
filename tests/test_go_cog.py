@@ -3,9 +3,9 @@ from datetime import date as datetype
 import pytest
 
 import _config
-from go.exceptions import DiscordUserError
-from go.go_cog import DiscordUser
-from go.playfab_api import as_player_id
+from go.bot.exceptions import DiscordUserError
+from go.bot.go_cog import DiscordUser
+from go.bot.playfab_api import as_player_id
 
 date1 = datetype(year=2022, month=1, day=1)
 date2 = datetype(year=2022, month=1, day=2)

@@ -6,9 +6,9 @@ from typing import List
 import pytest
 
 import _config
-from go.exceptions import GoDbError, PlayerNotFoundError
-from go.go_db import GoTeamPlayerSignup
-from go.models import GoPlayer, GoRatings
+from go.bot.exceptions import GoDbError, PlayerNotFoundError
+from go.bot.go_db import GoTeamPlayerSignup
+from go.bot.models import GoPlayer, GoRatings
 
 date1 = datetype(2023, 1, 1)
 date2 = datetype(2023, 1, 2)

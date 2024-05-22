@@ -8,8 +8,8 @@ from attr import define
 from dateutil import parser
 
 import _config
-from go.logger import create_logger
-from go.models import PfCareerStats, PfPlayer
+from go.bot.logger import create_logger
+from go.bot.models import PfCareerStats, PfPlayer
 
 logger = create_logger(__name__)
 

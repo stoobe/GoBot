@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, delete, func, select
 
 import _config
-from go.exceptions import DataNotDeletedError, GoDbError
-from go.logger import create_logger
-from go.models import GoPlayer, GoRatings, GoRoster, GoSchedule, GoSignup, GoTeam
+from go.bot.exceptions import DataNotDeletedError, GoDbError
+from go.bot.logger import create_logger
+from go.bot.models import GoPlayer, GoRatings, GoRoster, GoSchedule, GoSignup, GoTeam
 
 # filename = os.path.splitext(os.path.basename(__file__))[0]
 # logger = create_logger(logger_name=filename)
