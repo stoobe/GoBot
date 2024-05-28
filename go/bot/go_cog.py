@@ -526,7 +526,7 @@ class GoCog(commands.Cog):
                     teams = self.godb.get_teams_for_date(session_date=date, session=session)
                     msg = ""
                     player_count = 0
-                    for team in teams:
+                    for i, team in enumerate(teams):
                         session.refresh(team)
                         players = [r.player for r in team.rosters]
                         players_str = ""
@@ -537,7 +537,7 @@ class GoCog(commands.Cog):
                                 players_str += ", "
                             players_str += p.pf_player.ign
                         rating_str = f"{team.team_rating:,.0f}" if team.team_rating else "None"
-                        msg += f"**{team.team_name}** (*{rating_str}*) -- {players_str}\n"
+                        msg += f"{chr(ord('A')+i)}: **{team.team_name}** (*{rating_str}*) -- {players_str}\n"
                     msg = f"**teams:** {len(teams)}\n**players:** {player_count}\n\n" + msg
 
                 logger.info(msg)
