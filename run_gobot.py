@@ -23,7 +23,7 @@ async def main():
 
     SQLModel.metadata.create_all(engine)
 
-    discord.utils.setup_logging(level=_config.logging_level, root=False, formatter=go.logger.formatter)  # type: ignore
+    discord.utils.setup_logging(level=_config.logging_level, root=False, formatter=go.bot.logger.formatter)  # type: ignore
 
     # You must have access to the message_content intent for the commands extension to function.
     # This must be set both in the developer portal and within your code.
@@ -33,7 +33,7 @@ async def main():
 
     async with bot:
         logger.info("before bot.load_extension")
-        await bot.load_extension("go.go_cog")
+        await bot.load_extension("go.bot.go_cog")
         logger.info("bot.start")
         await bot.start(_config.bot_token)
         logger.info("end")

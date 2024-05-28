@@ -28,7 +28,7 @@ def main():
 
     SQLModel.metadata.create_all(engine)
 
-    discord.utils.setup_logging(level=_config.logging_level, root=False, formatter=go.logger.formatter)  # type: ignore
+    discord.utils.setup_logging(level=_config.logging_level, root=False, formatter=go.bot.logger.formatter)  # type: ignore
 
     cog = GoCog(bot=MyBot(engine))  # type: ignore
 
