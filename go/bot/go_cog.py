@@ -475,7 +475,7 @@ class GoCog(commands.Cog):
         return tpsignup
 
     @go_group.command(description="Cancel a signup for a day")
-    async def cancel(self, interaction: discord.Interaction):
+    async def cancel(self, interaction: discord.Interaction):  # type: ignore
 
         player = convert_user(interaction.user)
 
@@ -608,6 +608,35 @@ class GoCog(commands.Cog):
 
         except DiscordUserError as err:
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
+
+    @admin_group.command(description="Admin tool to cancel a signup for a day")
+    async def cancel(self, interaction: discord.Interaction, player: discord.Member):
+
+        player2 = convert_user(player)
+
+        logger.info("")
+        logger.info(f"GoCog.admin.cancel names ({interaction.channel}, {player2.name})")
+        logger.info(f"GoCog.admin.cancel ids   ({interaction.channel_id}, {player2.id})")
+
+        try:
+
+            if interaction.channel_id is None:
+                logger.warn(f"Channel is None in admin.cancel")
+                raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
+
+            with Session(self.engine) as session:
+                date = self.get_date_from_channel(interaction.channel_id, session)
+
+                tpsignup = self.do_cancel(player=player2, date=date, session=session)
+
+                msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
+                msg += f"\nThere are {len(tpsignup.team.signups)} signups still active for the team."
+                logger.info(msg)
+                await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     @admin_group.command(description="Set the session date for this channel")
