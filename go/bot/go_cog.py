@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import random
 from datetime import date as datetype
 from typing import List, Optional, Union
 
@@ -63,8 +66,12 @@ class GoCog(commands.Cog):
     #   """ /top-command """
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
-    def get_date_from_channel(self, channel_id: int, session: Session):
-        date = self.godb.get_session_date(session_id=channel_id, session=session)
+    def get_channel_date(self, interaction: discord.Interaction, session: Session) -> datetype:
+        if interaction.channel_id is None:
+            logger.warn(f"interaction.channel_id is None")
+            raise DiscordUserError("Error with discord -- interaction.channel_id is None.", code=ErrorCode.MISC_ERROR)
+
+        date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
         if date is None:
             raise DiscordUserError("Signups not enabled on this channel.")
         return date
@@ -193,7 +200,7 @@ class GoCog(commands.Cog):
                 msg = f"- IGN: {go_p.pf_player.ign}\n"
 
                 player_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
-                msg += f"- GO Rating: {player_rating:,.0f}\n"
+                msg += f"- GO Rating: {player_rating if player_rating else 0.0:,.0f}\n"
 
                 msg += f"- Playfab ID: {as_playfab_id(go_p.pf_player_id)}\n"
 
@@ -251,7 +258,7 @@ class GoCog(commands.Cog):
         session.commit()
         return team
 
-    @go_group.command(description="Rename team for this channel's signup")
+    @go_group.command(description="Rename your team for today's signup")
     async def rename_team(
         self,
         interaction: discord.Interaction,
@@ -270,16 +277,13 @@ class GoCog(commands.Cog):
             player = interaction.user  # type: ignore
 
         try:
-
-            if interaction.channel is None or interaction.channel_id is None:
-                logger.warn(f"Channel is None in rename_team")
-                raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
-
-            p = convert_user(player)  # type: ignore
-            logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel.name})")  # type: ignore
-
             with Session(self.engine) as session:
-                date = self.get_date_from_channel(interaction.channel_id, session)
+
+                date = self.get_channel_date(interaction, session)
+
+                p = convert_user(player)  # type: ignore
+                logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel.name})")  # type: ignore
+
                 team = self.do_rename_team(new_team_name, p, date, session)
                 msg = f"Team name changed to {team.team_name}"
                 logger.info(msg)
@@ -422,11 +426,7 @@ class GoCog(commands.Cog):
 
             with Session(self.engine) as session:
 
-                if interaction.channel_id is None:
-                    logger.warn(f"Channel is None in signup")
-                    raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
-
-                date = self.get_date_from_channel(interaction.channel_id, session)
+                date = self.get_channel_date(interaction, session)
 
                 players: List[Optional[DiscordUser]] = [convert_user(player1)]
                 players.append(convert_user(player2) if player2 else None)
@@ -449,6 +449,83 @@ class GoCog(commands.Cog):
         except DiscordUserError as err:
             logger.warn(f"signup resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
+
+    def do_update_signup(
+        self,
+        player,
+        players: List[Optional[DiscordUser]],
+        new_team_name: str | None,
+        date: datetype,
+        session: Session,
+    ) -> str:
+
+        tpsignup = self.do_cancel(player=player, date=date, session=session)
+        original_time = tpsignup.signup.signup_time
+
+        if new_team_name:
+            new_team_name = new_team_name.strip()
+        else:
+            new_team_name = tpsignup.team.team_name
+
+        if new_team_name is None:
+            new_team_name = f"team_{random.randint(1000, 9999)}"
+
+        signup = self.do_signup(players=players, team_name=new_team_name, date=date, session=session)
+        signup.signup_time = original_time
+        session.add(signup)
+
+        team = signup.team
+        igns = [r.player.pf_player.ign for r in team.rosters]
+
+        msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
+        msg += f"\nThere are {len(tpsignup.team.signups)} signups still active for that team."
+        msg += "\n"
+        msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+        msg += f"\nTeam GO Rating is {team.team_rating:,.0f}."
+        msg += f"\nThis is signup #{len(team.signups)} for the team."
+        return msg
+
+    @go_group.command(description="Change your signup to a new team but keep your spot in line.")
+    async def update_signup(
+        self,
+        interaction: discord.Interaction,
+        new_player1: discord.Member,
+        new_player2: Optional[discord.Member] = None,
+        new_player3: Optional[discord.Member] = None,
+        new_team_name: Optional[str] = None,
+    ):
+
+        logger.info("")
+        logger.info(
+            f"GoCog.update_signup names ({interaction.channel}, {new_team_name}, {get_name(new_player1)}, {new_player2 and get_name(new_player2)}, {new_player3 and get_name(new_player3)})"
+        )
+        logger.info(
+            f"GoCog.update_signup ids   ({interaction.channel_id}, {new_team_name}, {new_player1.id}, {new_player2 and new_player2.id}, {new_player3 and new_player3.id})"
+        )
+
+        with Session(self.engine) as session:
+            try:
+                session.begin()
+
+                date = self.get_channel_date(interaction, session)
+
+                # player may or may not be on the new team
+                # but player (the user running the command) must
+                # be on the team being cancelled
+                player = convert_user(interaction.user)
+
+                players: List[Optional[DiscordUser]] = [convert_user(new_player1)]
+                players.append(convert_user(new_player2) if new_player2 else None)
+                players.append(convert_user(new_player3) if new_player3 else None)
+
+                msg = self.do_update_signup(player, players, new_team_name, date, session)
+                logger.info(msg)
+                await interaction.response.send_message(msg)
+
+            except DiscordUserError as err:
+                session.rollback()
+                logger.warn(f"signup resulted in error code {err.code}: {err.message}")
+                await interaction.response.send_message(err.message)
 
     def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoTeamPlayerSignup:
         tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
@@ -484,13 +561,8 @@ class GoCog(commands.Cog):
         logger.info(f"GoCog.cancel ids   ({interaction.channel_id}, {player.id})")
 
         try:
-
-            if interaction.channel_id is None:
-                logger.warn(f"Channel is None in cancel")
-                raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
-
             with Session(self.engine) as session:
-                date = self.get_date_from_channel(interaction.channel_id, session)
+                date = self.get_channel_date(interaction, session)
 
                 tpsignup = self.do_cancel(player=player, date=date, session=session)
 
@@ -507,18 +579,13 @@ class GoCog(commands.Cog):
     async def list_teams(self, interaction: discord.Interaction):
         try:
 
-            if interaction.channel_id is None or interaction.channel is None:
-                logger.warn(f"Channel is None in cancel")
-                raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
-
             logger.info(
-                f"Running list_teams on  channel_id: {interaction.channel_id}  channel.name: {interaction.channel.name}"  # type: ignore
+                f"Running list_teams on  channel_id: {interaction.channel_id}  channel.name: {interaction.channel}"  # type: ignore
             )
 
             with Session(self.engine) as session:
                 msg = ""
-                session_id = interaction.channel_id
-                date = self.godb.get_session_date(session_id=session_id, session=session)
+                date = self.get_channel_date(interaction, session)
 
                 if date is None:
                     msg = "This channel has no games to signup for."
@@ -621,12 +688,8 @@ class GoCog(commands.Cog):
 
         try:
 
-            if interaction.channel_id is None:
-                logger.warn(f"Channel is None in admin.cancel")
-                raise DiscordUserError("Error with discord -- cannot get channel info.", code=ErrorCode.MISC_ERROR)
-
             with Session(self.engine) as session:
-                date = self.get_date_from_channel(interaction.channel_id, session)
+                date = self.get_channel_date(interaction, session)
 
                 tpsignup = self.do_cancel(player=player2, date=date, session=session)
 

@@ -160,12 +160,13 @@ class PlayfabDB:
         self, pf_player_id, session: Session, snapshot_date: Optional[datetime] = None
     ) -> Optional[float]:
         if snapshot_date is None:
-            snapshot_date = _config.go_rating_snapshot_date
+            snapshot_date = datetime.now()
+            #     snapshot_date = _config.go_rating_snapshot_date
 
         statement = select(PfCareerStats).where(PfCareerStats.pf_player_id == pf_player_id)
-        statement = statement.where(PfCareerStats.date <= snapshot_date).order_by(
-            PfCareerStats.date.desc()  # type: ignore
-        )
+        statement = statement.where(PfCareerStats.date <= snapshot_date)
+        statement = statement.order_by(PfCareerStats.date.desc())  # type: ignore
+
         most_recent = None
         previous_snapshop = None
         for rating in session.exec(statement):
@@ -180,6 +181,7 @@ class PlayfabDB:
                 # if we've accumulated over 500 games that's enough
                 if most_recent.games - rating.games >= 500:
                     break
+
                 # if we've gone back over 3 months we don't want to go back farther
                 if snapshot_date - rating.date >= timedelta(days=96):
                     break
