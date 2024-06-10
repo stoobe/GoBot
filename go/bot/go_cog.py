@@ -345,7 +345,7 @@ class GoCog(commands.Cog):
             if go_player is None or go_player.pf_player is None:
                 # store the players that need to set their IGN
                 # so we can tell them all at once
-                players_to_set_ign.append(go_player)
+                players_to_set_ign.append(player)
             else:
                 # make sure all players have ratings
                 player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
