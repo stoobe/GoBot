@@ -317,7 +317,7 @@ def test_signup_over_rating_cap(gocog_preload, session, du1, du2, du3):
         _config.go_rating_limits[3] = orig
 
 
-def test_update_signup(gocog_preload, session, du1, du2, du3):
+def test_change_signup(gocog_preload, session, du1, du2, du3):
     godb = gocog_preload.godb
     signup = gocog_preload.do_signup(players=[du1, du3], team_name="tname3", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
@@ -333,17 +333,17 @@ def test_update_signup(gocog_preload, session, du1, du2, du3):
 
     with pytest.raises(DiscordUserError):
         # du2 not on the original roster
-        gocog_preload.do_update_signup(
+        gocog_preload.do_change_signup(
             player=du2, players=[du1, du2, du3], new_team_name=None, date=date1, session=session
         )
 
     with pytest.raises(DiscordUserError):
         # date2 wrong date
-        gocog_preload.do_update_signup(
+        gocog_preload.do_change_signup(
             player=du1, players=[du1, du2, du3], new_team_name=None, date=date2, session=session
         )
 
-    gocog_preload.do_update_signup(player=du1, players=[du1, du2, du3], new_team_name=None, date=date1, session=session)
+    gocog_preload.do_change_signup(player=du1, players=[du1, du2, du3], new_team_name=None, date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
@@ -355,7 +355,7 @@ def test_update_signup(gocog_preload, session, du1, du2, du3):
     assert len(team.signups) == 1
     assert len(team.rosters) == 3
 
-    gocog_preload.do_update_signup(player=du2, players=[du2], new_team_name="team_solo", date=date1, session=session)
+    gocog_preload.do_change_signup(player=du2, players=[du2], new_team_name="team_solo", date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 1 == godb.roster_count(session=session)

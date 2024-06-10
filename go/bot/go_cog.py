@@ -481,7 +481,7 @@ class GoCog(commands.Cog):
             logger.warn(f"signup resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
-    def do_update_signup(
+    def do_change_signup(
         self,
         player,
         players: List[Optional[DiscordUser]],
@@ -522,7 +522,7 @@ class GoCog(commands.Cog):
         return msg
 
     @go_group.command(description="Change your signup to a new team but keep your spot in line.")
-    async def update_signup(
+    async def change_signup(
         self,
         interaction: discord.Interaction,
         new_player1: discord.Member,
@@ -533,10 +533,10 @@ class GoCog(commands.Cog):
 
         logger.info("")
         logger.info(
-            f"GoCog.update_signup names ({interaction.channel}, {new_team_name}, {get_name(new_player1)}, {new_player2 and get_name(new_player2)}, {new_player3 and get_name(new_player3)})"
+            f"GoCog.change_signup names ({interaction.channel}, {new_team_name}, {get_name(new_player1)}, {new_player2 and get_name(new_player2)}, {new_player3 and get_name(new_player3)})"
         )
         logger.info(
-            f"GoCog.update_signup ids   ({interaction.channel_id}, {new_team_name}, {new_player1.id}, {new_player2 and new_player2.id}, {new_player3 and new_player3.id})"
+            f"GoCog.change_signup ids   ({interaction.channel_id}, {new_team_name}, {new_player1.id}, {new_player2 and new_player2.id}, {new_player3 and new_player3.id})"
         )
 
         with Session(self.engine) as session:
@@ -554,7 +554,7 @@ class GoCog(commands.Cog):
                 players.append(convert_user(new_player2) if new_player2 else None)
                 players.append(convert_user(new_player3) if new_player3 else None)
 
-                msg = self.do_update_signup(player, players, new_team_name, date, session)
+                msg = self.do_change_signup(player, players, new_team_name, date, session)
                 session.commit()
 
                 logger.info(msg)
@@ -605,12 +605,17 @@ class GoCog(commands.Cog):
 
                 signup = self.do_cancel(player=player, date=date, session=session)
 
-                team = signup.team
+                team_id = signup.team.id
+                team_name = signup.team.team_name
                 session.commit()
-                session.refresh(team)
 
-                msg = f'Cancelled "{team.team_name}" for session on {date}.'
-                msg += f"\nThere are {len(team.signups)} signups still active for the team."
+                team = self.godb.read_team(team_id=team_id, session=session)
+                signups_remaining = 0
+                if team:
+                    signups_remaining = len(team.signups)
+
+                msg = f'Cancelled "{team_name}" for session on {date}.'
+                msg += f"\nThere are {signups_remaining} signups still active for the team."
                 logger.info(msg)
                 await interaction.response.send_message(msg)
         except DiscordUserError as err:
@@ -622,6 +627,15 @@ class GoCog(commands.Cog):
     async def cancel(self, interaction: discord.Interaction):  # type: ignore
         player = convert_user(interaction.user)
         await self.handle_cancel("cancel", interaction, player)
+
+    #
+    @go_group.command(description="GO League doesn't have subs. Use /go change_signup.")
+    async def sub(self, interaction: discord.Interaction):
+        msg = "GO League doesn't have subs\n"
+        msg += "- Every new combo of players is a new team.\n"
+        msg += "- Use `/go change_signup` to signup a different team for today while keeping your orignial signup time."
+        logger.info(msg)
+        await interaction.response.send_message(msg)
 
     #
     @go_group.command(description="List the teams playing today")
