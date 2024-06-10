@@ -4,10 +4,14 @@ pipreqs .
 
 pip install -r requirements.txt
 
-## Random Stuff
+## AWS Commands
 
 nohup python load_playfab_db.py --end 50000 --statname CareerWins > load_june.out 2>&1&
 nohup python load_playfab_db.py --end 50000 --statname WeeklyKillsTotal >> load_june.out 2>&1&
+
+## Mac Commands
+
+pytest --cov=go/bot --cov-report=html
 
 ## Mac Setup
 

@@ -125,13 +125,10 @@ class GoCog(commands.Cog):
         # if GoPlayer doesn't exist create it
         if not self.godb.player_exists(discord_id=player.id, session=session):
             go_p = GoPlayer(discord_id=player.id, discord_name=player.name)  # type: ignore
-            self.godb.create_player(go_player=go_p, session=session)
+            session.add(go_p)
 
         go_p = self.godb.read_player(discord_id=player.id, session=session)
-
-        if go_p is None:
-            msg = f"Could not create/read player from DB for user {player.name}"
-            raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+        assert go_p is not None
 
         # check if the ign has already been set (discord_id has associated playfab player_id)
         if go_p.pf_player_id is not None:
@@ -265,9 +262,7 @@ class GoCog(commands.Cog):
             msg = f"Player {player.name} is not signed up on {date}."
             raise DiscordUserError(msg)
 
-        if len(tpsignups) > 1:
-            msg = f"Somehow player {player.name} has signed up more than once on {date}"
-            raise DiscordUserError(msg)
+        assert len(tpsignups) == 1
 
         team = tpsignups[0].team
         team.team_name = new_team_name

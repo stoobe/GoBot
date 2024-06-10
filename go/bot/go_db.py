@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date as datetype
 from datetime import datetime
 from typing import List, Optional, Set
@@ -23,34 +25,41 @@ class GoTeamPlayerSignup(BaseModel):
 
 class GoDB:
 
+    #
     def __init__(self, engine):
         self.engine = engine
 
-    def create_player(self, go_player: GoPlayer, session: Session) -> None:
-        logger.info("Creating GoPlayer in DB")
-        session.add(go_player)
-        session.commit()
+    #
+    # def create_player(self, go_player: GoPlayer, session: Session) -> None:
+    #     logger.info("Creating GoPlayer in DB")
+    #     session.add(go_player)
+    #     session.commit()
 
+    #
     def player_exists(self, discord_id: int, session: Session) -> bool:
         statement = select(GoPlayer).where(GoPlayer.discord_id == discord_id)
         result = session.exec(statement).first()
         return result is not None
 
-    def read_player(self, discord_id: int, session: Session) -> GoPlayer:
+    #
+    def read_player(self, discord_id: int, session: Session) -> GoPlayer | None:
         logger.info(f"Reading GoPlayer with {discord_id = } from DB")
         statement = select(GoPlayer).where(GoPlayer.discord_id == discord_id)
-        result: GoPlayer = session.exec(statement).first()  # type: ignore
-        return result
+        return session.exec(statement).first()
 
+    #
     def player_count(self, session):
         statement = select(func.count(GoPlayer.discord_id))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def delete_player(self, session: Session, discord_id: int) -> None:
         logger.info(f"Deleting GoPlayer with {discord_id = } from DB")
 
         # Get the go_player, can throw PlayerNotFoundError
         go_player = self.read_player(discord_id=discord_id, session=session)
+        if go_player is None:
+            raise GoDbError(f"Cannot dlete GoPlayer with {discord_id = } -- was not found in the DB.")
 
         if go_player.rosters:
             raise GoDbError(f"GoPlayer with {discord_id = } cannot be deleted before teams are deleted")
@@ -58,29 +67,18 @@ class GoDB:
         session.delete(go_player)
         session.commit()
 
-        # Confirm the deletion
-        if not self.player_exists(discord_id=discord_id, session=session):
-            logger.info(f"GoPlayer with {discord_id = } was confirmed deleted")
-        else:
-            raise DataNotDeletedError(f"GoPlayer with {discord_id = } was not deleted")
+        logger.info(f"GoPlayer with {discord_id = } was  deleted")
 
+    #
     def delete_all_players(self, session: Session) -> None:
         logger.info("Deleting all GoPlayers from DB")
 
         statement = delete(GoPlayer)
         session.exec(statement)  # type: ignore
 
-        # Confirm the deletion
-        statement = select(GoPlayer)
-        results_post_delete = session.exec(statement)
-        players_post_delete = results_post_delete.all()
+        logger.info("All GoPlayers were deleted")
 
-        if players_post_delete == []:
-            logger.info("All GoPlayers were confirmed deleted")
-        else:
-            logger.error("All GoPlayers were not deleted")
-            raise DataNotDeletedError("All GoPlayers were not deleted")
-
+    #
     def create_team(
         self,
         team_name: str,
@@ -118,8 +116,7 @@ class GoDB:
         session.commit()
         session.refresh(team)
 
-        if team.id is None:
-            raise GoDbError("Cannot create team: problem ecountered with the DB")
+        assert team.id is not None
 
         for go_p in go_players:
             r = GoRoster(team_id=team.id, discord_id=go_p.discord_id)
@@ -129,18 +126,22 @@ class GoDB:
 
         return team
 
+    #
     def team_count(self, session):
         statement = select(func.count(GoTeam.id))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def roster_count(self, session):
         statement = select(func.count(GoRoster.discord_id))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def signup_count(self, session):
         statement = select(func.count(GoSignup.team_id))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def add_signup(
         self, team: GoTeam, date: datetype, session: Session, signup_time: Optional[datetime] = None
     ) -> GoSignup:
@@ -154,9 +155,9 @@ class GoDB:
 
         for tp in current_signups:
             if tp.player.discord_id in discord_ids:
-                player = self.read_player(discord_id=tp.player.discord_id, session=session)
+                # player = self.read_player(discord_id=tp.player.discord_id, session=session)
                 raise GoDbError(
-                    f'Player {player.discord_name} is already signed up for {date} for team "{tp.team.team_name}".'
+                    f'Player {tp.player.discord_name} is already signed up for {date} for team "{tp.team.team_name}".'
                 )
 
         if signup_time is None:
@@ -167,6 +168,7 @@ class GoDB:
         session.commit()
         return signup
 
+    #
     def read_player_signups(
         self,
         session: Session,
@@ -202,12 +204,14 @@ class GoDB:
         logger.info(f"Returning {len(signups)} signups")
         return signups
 
+    #
     def read_team(self, team_id: int, session: Session) -> Optional[GoTeam]:
         logger.info(f"Reading GoTeam with {team_id = } from DB")
         statement = select(GoTeam).where(GoTeam.id == team_id)
         team = session.exec(statement).first()
         return team
 
+    #
     def read_team_with_roster(self, discord_ids: Set[int], session: Session) -> Optional[GoTeam]:
         logger.info(f"Reading GoTeam with {discord_ids = } from DB")
 
@@ -218,9 +222,12 @@ class GoDB:
         for r in result:
             team_ids.add(r.id)
 
+        # for each teammate
         for discord_id in discord_ids:
+            # get the teams that have this player
             statement = select(GoRoster).where(GoRoster.discord_id == discord_id)
             player_teams = {roster.team_id for roster in session.exec(statement)}
+            # and intersect with the teams we already have
             team_ids.intersection_update(player_teams)
 
         if len(team_ids) > 1:
@@ -239,15 +246,17 @@ class GoDB:
             logger.info(f"Returning team with {team.id = }")
             return team
 
-        else:
-            raise Exception("Unreachable")
+        # else:
+        #     raise Exception("Unreachable")
 
+    #
     def read_team_with_name(self, team_name: str, session: Session) -> Optional[GoTeam]:
         logger.info(f"Reading GoTeam with {team_name = } from DB")
         statement = select(GoTeam).where(GoTeam.team_name == team_name)
         team = session.exec(statement).first()
         return team
 
+    #
     def get_teams_for_date(self, session_date, session: Session) -> List[GoTeam]:
         logger.info(f"Reading GoSignups with {session_date = } from DB")
         statement = (
@@ -259,6 +268,7 @@ class GoDB:
             teams.append(signup.team)
         return teams
 
+    #
     def get_session_date(self, session_id, session: Session) -> Optional[datetype]:
         statement = select(GoSchedule).where(GoSchedule.session_id == session_id)
         gosched = session.exec(statement).first()
@@ -266,6 +276,7 @@ class GoDB:
             return None
         return gosched.session_date
 
+    #
     def set_session_date(self, session_id, session_date, session: Session):
         if session_id is None:
             raise ValueError("session_id cannot be None")
@@ -286,11 +297,11 @@ class GoDB:
         session.add(gosched)
         session.commit()
 
+    #
     def get_official_rating(self, pf_player_id, session: Session) -> Optional[float]:
         statement = select(GoRatings).where(GoRatings.rating_type == "official")
         statement = statement.where(GoRatings.season == _config.go_season)
         statement = statement.where(GoRatings.pf_player_id == pf_player_id)
-        print("statement", statement)
         rating = session.exec(statement).first()
         if rating is None:
             return None

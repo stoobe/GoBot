@@ -30,8 +30,8 @@ def test_connect_go_and_pf_players(godb, pfdb, session, go_p1, go_p2, pf_p1, pf_
     pfdb.create_player(player=pf_p1, session=session)
     pfdb.create_player(player=pf_p2, session=session)
 
-    godb.create_player(go_player=go_p1, session=session)
-    godb.create_player(go_player=go_p2, session=session)
+    session.add(go_p1)
+    session.add(go_p2)
 
     pf_p = pfdb.read_players_by_ign(ign=pf_p1.ign, session=session)[0]
     assert pf_p is not None
@@ -52,7 +52,7 @@ def test_connect_go_and_pf_players(godb, pfdb, session, go_p1, go_p2, pf_p1, pf_
 
 def test_do_set_ign1(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
     pfdb.create_player(player=pf_p1, session=session)
-    godb.create_player(go_player=go_p1, session=session)
+    session.add(go_p1)
 
     assert go_p1.pf_player is None
     assert pf_p1.go_player is None
@@ -92,7 +92,7 @@ def test_do_set_ign_new_go_player(gocog, godb, pfdb, session, pf_p1, du1):
 
 def test_set_ign_twice_error(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
     pfdb.create_player(player=pf_p1, session=session)
-    godb.create_player(go_player=go_p1, session=session)
+    session.add(go_p1)
 
     gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
@@ -102,7 +102,7 @@ def test_set_ign_twice_error(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
 
 def test_set_ign_twice_error_second_user(gocog, godb, pfdb, session, go_p1, pf_p1, du1, du2):
     pfdb.create_player(player=pf_p1, session=session)
-    godb.create_player(go_player=go_p1, session=session)
+    session.add(go_p1)
 
     gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
 
@@ -129,7 +129,7 @@ def test_do_set_ign_as_playfabid(gocog, godb, pfdb, session, go_p1, pf_p1, du1):
     playfab_str = "14E017AE65DFDD61"
     pf_p1.id = as_player_id(playfab_str)
     pfdb.create_player(player=pf_p1, session=session)
-    godb.create_player(go_player=go_p1, session=session)
+    session.add(go_p1)
 
     assert go_p1.pf_player is None
     assert pf_p1.go_player is None
@@ -179,6 +179,9 @@ def test_signup_solo(gocog, godb, pfdb, session, du1, pf_p1, stats_p1_1):
     assert team.team_size == 1
     assert len(team.signups) == 1
     assert len(team.rosters) == 1
+
+    signup2 = gocog.do_signup(players=[du1], team_name=None, date=date2, session=session)
+    assert signup2.team.team_name == "tname1"
 
 
 def test_signup_duo(gocog, godb, pfdb, session, du1, pf_p1, du2, pf_p2, stats_p1_1, stats_p2_1):
@@ -232,6 +235,18 @@ def test_signup_trio(gocog_preload, session, du1, du2, du3):
     assert team.team_size == 3
     assert len(team.signups) == 2
     assert len(team.rosters) == 3
+
+
+def test_signup_with_Nones(gocog_preload, session, du1, du2, du3):
+    godb = gocog_preload.godb
+    signup = gocog_preload.do_signup(players=[du1, None, None], team_name="tname3", date=date1, session=session)
+
+
+def test_signup_missing_ign_fail(gocog_preload, session, du1, du2, du3):
+    godb = gocog_preload.godb
+    du0 = DiscordUser(id=0, name="du0")
+    with pytest.raises(DiscordUserError):
+        signup = gocog_preload.do_signup(players=[du1, du2, du0], team_name="tname3", date=date1, session=session)
 
 
 def test_signup_missing_user_fails(gocog_preload, session, du1, du2, du3):

@@ -13,9 +13,11 @@ logger = create_logger(__name__)
 
 class PlayfabDB:
 
+    #
     def __init__(self, engine):
         self.engine = engine
 
+    #
     def create_player(self, player: PfPlayer, session: Session) -> None:
         logger.info("Creating PfPlayer in DB")
         session.add(player)
@@ -29,18 +31,22 @@ class PlayfabDB:
             session.add(ign_row)
 
         session.commit()
+        print(player)
 
+    #
     def player_exists(self, pf_player_id: int, session: Session) -> bool:
         statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
         result = session.exec(statement).first()
         return result is not None
 
+    #
     def read_player(self, pf_player_id: int, session: Session) -> Optional[PfPlayer]:
         logger.info(f"Reading PfPlayer with Playfab ID {pf_player_id} from DB")
         statement = select(PfPlayer).where(PfPlayer.id == pf_player_id)
         result = session.exec(statement).first()
         return result
 
+    #
     def read_players_by_ign(self, ign: str, session: Session, limit=None) -> List[PfPlayer]:
         logger.info(f"Reading PfPlayer with {ign = } from DB")
         statement = select(PfPlayer).where(PfPlayer.ign.contains(ign.lower()))  # type: ignore
@@ -49,10 +55,12 @@ class PlayfabDB:
         result = [_ for _ in session.exec(statement)]
         return result
 
+    #
     def player_count(self, session):
         statement = select(func.count(PfPlayer.id))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def update_player(
         self,
         session: Session,
@@ -86,6 +94,7 @@ class PlayfabDB:
         session.commit()
         logger.info(f"Updated PfPlayer with ID {pf_player_id} in DB")
 
+    #
     def delete_player(self, session: Session, pf_player_id: int) -> None:
         logger.info(f"Deleting PfPlayer with ID {pf_player_id} from DB")
 
@@ -94,50 +103,32 @@ class PlayfabDB:
 
         session.delete(player)
         session.commit()
+        logger.info(f"PfPlayer with {pf_player_id = } was deleted")
 
-        # Confirm the deletion
-        if not self.player_exists(pf_player_id=pf_player_id, session=session):
-            logger.info(f"PfPlayer with {pf_player_id = } was confirmed deleted")
-        else:
-            raise DataNotDeletedError(f"PfPlayer with {pf_player_id = } was not deleted")
-
+    #
     def delete_all_players(self, session: Session) -> None:
         logger.info("Deleting all PfPlayers from DB")
 
         statement = delete(PfPlayer)
         session.exec(statement)  # type: ignore
+        session.commit()
+        logger.info("All PfPlayers were deleted")
 
-        # Confirm the deletion
-        if self.player_count(session=session) == 0:
-            logger.info("All PfPlayers were confirmed deleted")
-        else:
-            logger.error("All PfPlayers were not deleted")
-            raise DataNotDeletedError("All PfPlayers were not deleted")
-
+    #
     def add_career_stats(self, stats: PfCareerStats, session: Session) -> None:
         logger.info("Adding CareerStats in DB")
         session.add(stats)
         session.commit()
 
+    #
     def delete_all_career_stats(self, session: Session) -> None:
         logger.info("Deleting all CareerStats from DB")
-        statement = select(PfCareerStats)
-        results = session.exec(statement)
+        statement = delete(PfCareerStats)
+        session.exec(statement)  # type: ignore
+        session.commit()
+        logger.info("All PfCareerStats were deleted")
 
-        for stats in results:
-            session.delete(stats)
-            session.commit()
-
-        # Confirm the deletion
-        results_post_delete = session.exec(statement)
-        stats_post_delete = results_post_delete.all()
-
-        if stats_post_delete == []:
-            logger.info("All Stats were confirmed deleted")
-        else:
-            logger.error("All Stats were not deleted")
-            raise DataNotDeletedError("All Stats were not deleted")
-
+    #
     def check_update_ign_history(self, player: PfPlayer, session: Session) -> None:
         """
         Check if player.ign is new. If so create a new IgnHistory entry.
@@ -152,10 +143,12 @@ class PlayfabDB:
 
         session.commit()
 
+    #
     def ign_history_count(self, session):
         statement = select(func.count(PfIgnHistory.ign))  # type: ignore
         return session.exec(statement).one()
 
+    #
     def calc_rating_from_stats(
         self, pf_player_id, session: Session, snapshot_date: Optional[datetime] = None
     ) -> Optional[float]:

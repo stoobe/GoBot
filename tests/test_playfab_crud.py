@@ -31,6 +31,8 @@ def test_create_and_read_player(pfdb, session, pf_p1):
     assert ign_hist[0].date >= function_start
     assert ign_hist[0].date <= function_end
 
+    print(pf_p1)
+
 
 def test_read_players_by_ign(pfdb, session, pf_p1, pf_p2):
     pfdb.create_player(player=pf_p1, session=session)
@@ -214,6 +216,14 @@ def test_update_player(pfdb, session, pf_p1, ign, last_login, avatar_url):
         assert player.avatar_url == pf_p1.avatar_url
 
 
+def test_update_player_missing(pfdb, session, pf_p1):
+    pfdb.create_player(player=pf_p1, session=session)
+
+    with pytest.raises(PlayerNotFoundError):
+        bad_id = pf_p1.id + 1
+        pfdb.update_player(session=session, pf_player_id=bad_id, ign="new ign")
+
+
 def test_career_stats_create_and_read(pfdb, session, pf_p1, stats_p1_1, stats_p1_2, pf_p2, stats_p2_1, stats_p2_2):
     pfdb.create_player(player=pf_p1, session=session)
     assert 1 == pfdb.player_count(session=session)
@@ -284,6 +294,18 @@ def test_career_stats_deletes(pfdb, session, pf_p1, stats_p1_1, stats_p1_2, pf_p
     assert len(p2stats) == 0
 
 
+def test_career_stats_calcs(stats_p1_1, stats_p1_zeros):
+    assert stats_p1_1.calc_wr() == 0.5
+    assert stats_p1_1.calc_kpg() == 0.7
+    assert stats_p1_1.calc_dpg() == 200.0
+    assert stats_p1_1.calc_rating() == pytest.approx(320.2380952381)
+
+    assert stats_p1_zeros.calc_wr() == 0
+    assert stats_p1_zeros.calc_kpg() == 0
+    assert stats_p1_zeros.calc_dpg() == 0
+    assert stats_p1_zeros.calc_rating() == pytest.approx(0)
+
+
 @pytest.mark.parametrize(
     "igns",
     [
@@ -347,6 +369,7 @@ def test_ign_hist_no_change_and_ordering(pfdb, session, pf_p1):
 
     assert len(player.ign_history) == 1
     assert player.ign_history[0].ign == orig_ign
+    print(repr(player.ign_history[0]))
 
     # Update Player
     pfdb.update_player(

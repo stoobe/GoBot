@@ -294,6 +294,9 @@ def gocog_preload(
     pf_p1,
     pf_p2,
     pf_p3,
+    go_p1,
+    go_p2,
+    go_p3,
     stats_p1_1,
     stats_p2_1,
     stats_p3_1,
@@ -302,6 +305,9 @@ def gocog_preload(
     gocog.pfdb.create_player(player=pf_p1, session=session)
     gocog.pfdb.create_player(player=pf_p2, session=session)
     gocog.pfdb.create_player(player=pf_p3, session=session)
+    session.add(go_p1)
+    session.add(go_p2)
+    session.add(go_p3)
     gocog.do_set_ign(player=du1, ign=pf_p1.ign, session=session)
     gocog.do_set_ign(player=du2, ign=pf_p2.ign, session=session)
     gocog.do_set_ign(player=du3, ign=pf_p3.ign, session=session)
@@ -314,19 +320,22 @@ def gocog_preload(
     session.refresh(pf_p1)
     session.refresh(pf_p2)
     session.refresh(pf_p3)
+    session.refresh(go_p1)
+    session.refresh(go_p2)
+    session.refresh(go_p3)
     yield gocog
 
 
 @pytest.fixture
 def du1(go_p1, scope="function"):
-    return DiscordUser(id=go_p1.discord_id, name="user_name_1")
+    return DiscordUser(id=go_p1.discord_id, name=go_p1.discord_name)
 
 
 @pytest.fixture
 def du2(go_p2, scope="function"):
-    return DiscordUser(id=go_p2.discord_id, name="user_name_2")
+    return DiscordUser(id=go_p2.discord_id, name=go_p2.discord_name)
 
 
 @pytest.fixture
 def du3(go_p3, scope="function"):
-    return DiscordUser(id=go_p3.discord_id, name="user_name_3")
+    return DiscordUser(id=go_p3.discord_id, name=go_p3.discord_name)
