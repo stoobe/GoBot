@@ -191,6 +191,8 @@ class GoCog(commands.Cog):
                     msg = f"Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this."
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
 
+                session.commit()
+
                 go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
                 msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
 
@@ -427,7 +429,6 @@ class GoCog(commands.Cog):
             # convert that error to this one we expect to throw
             raise DiscordUserError(err.args[0])
 
-        session.refresh(go_team_by_roster)
         return signup
 
     @go_group.command(description="Sign up a team for this session")
@@ -462,7 +463,8 @@ class GoCog(commands.Cog):
                     team_name = team_name.strip()
 
                 signup = self.do_signup(players=players, team_name=team_name, date=date, session=session)
-
+                session.commit()
+                session.refresh(signup.team)
                 team = signup.team
 
                 igns = [r.player.pf_player.ign for r in team.rosters]
@@ -721,6 +723,8 @@ class GoCog(commands.Cog):
                 if go_p.pf_player_id is None or go_p.pf_player is None:
                     msg = f"Could not set the IGN for {player.name}."
                     raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
+
+                session.commit()
 
                 go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
                 if go_rating is None:
