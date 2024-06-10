@@ -275,7 +275,7 @@ class GoCog(commands.Cog):
         session.commit()
         return team
 
-    @go_group.command(description="Rename your team for today's signup")
+    @go_group.command(description="Rename your team in this session")
     async def rename_team(
         self,
         interaction: discord.Interaction,
@@ -435,7 +435,7 @@ class GoCog(commands.Cog):
         session.refresh(go_team_by_roster)
         return signup
 
-    @go_group.command(description="Sign up your team to play on a day")
+    @go_group.command(description="Sign up a team for this session")
     async def signup(
         self,
         interaction: discord.Interaction,
@@ -521,7 +521,7 @@ class GoCog(commands.Cog):
         msg += f"\nThis is signup #{len(team.signups)} for the team."
         return msg
 
-    @go_group.command(description="Change your signup to a new team but keep your spot in line.")
+    @go_group.command(description="Change your signup and keep your spot in line")
     async def change_signup(
         self,
         interaction: discord.Interaction,
@@ -623,22 +623,22 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message)
 
     #
-    @go_group.command(description="Cancel a signup for a day")
+    @go_group.command(description="Cancel your signup for this session")
     async def cancel(self, interaction: discord.Interaction):  # type: ignore
         player = convert_user(interaction.user)
         await self.handle_cancel("cancel", interaction, player)
 
     #
-    @go_group.command(description="GO League doesn't have subs. Use /go change_signup.")
+    @go_group.command(description="GO League doesn't have subs. Use /go change_signup")
     async def sub(self, interaction: discord.Interaction):
         msg = "GO League doesn't have subs\n"
         msg += "- Every new combo of players is a new team.\n"
-        msg += "- Use `/go change_signup` to signup a different team for today while keeping your orignial signup time."
+        msg += "- Use `/go change_signup` to signup a different team for this session while keeping your orignial signup time."
         logger.info(msg)
         await interaction.response.send_message(msg)
 
     #
-    @go_group.command(description="List the teams playing today")
+    @go_group.command(description="List the teams signed up this session")
     async def list_teams(self, interaction: discord.Interaction):
         try:
 
@@ -741,7 +741,7 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message)
 
     #
-    @admin_group.command(description="Admin tool to cancel a signup for a day")
+    @admin_group.command(description="Admin tool to cancel a signup")
     async def cancel(self, interaction: discord.Interaction, player: discord.Member):
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
