@@ -270,10 +270,20 @@ def test_signup_name_change_uses_old_name(gocog_preload, session, du1, du2, du3)
     assert signup.team.team_name == "tname3"
 
 
-def test_signup_name_collision_fail(gocog_preload, session, du1, du2, du3):
-    gocog_preload.do_signup(players=[du1, du2], team_name="SAME NAME DIFF TEAM", date=date1, session=session)
-    with pytest.raises(DiscordUserError):
-        gocog_preload.do_signup(players=[du3], team_name="SAME NAME DIFF TEAM", date=date2, session=session)
+def test_signup_name_collision(gocog_preload, session, du1, du2, du3):
+    signup1 = gocog_preload.do_signup(players=[du1], team_name="SAME NAME DIFF TEAM", date=date1, session=session)
+    signup2 = gocog_preload.do_signup(players=[du2], team_name="SAME NAME DIFF TEAM", date=date2, session=session)
+
+    assert signup2.team.team_name == "SAME NAME DIFF TEAM 2"
+
+
+def test_signup_name_collision_detect_number(gocog_preload, session, du1, du2, du3):
+    signup1 = gocog_preload.do_signup(players=[du1], team_name="SAME NAME DIFF TEAM 123", date=date1, session=session)
+    signup2 = gocog_preload.do_signup(players=[du2], team_name="SAME NAME DIFF TEAM 123", date=date2, session=session)
+    signup3 = gocog_preload.do_signup(players=[du3], team_name="SAME NAME DIFF TEAM 124", date=date2, session=session)
+
+    assert signup2.team.team_name == "SAME NAME DIFF TEAM 124"
+    assert signup3.team.team_name == "SAME NAME DIFF TEAM 125"
 
 
 def test_signup_same_day_fail(gocog_preload, session, du1, du2, du3):

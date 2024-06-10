@@ -42,6 +42,15 @@ def escmd(text: str) -> str:
     return text.replace("*", "\\*").replace("_", "\\_").replace("~", "\\~").replace("`", "\\`")
 
 
+def increment_team_name(team_name: str) -> str:
+    team_name_base = team_name.rstrip("0123456789")
+    n = 1
+    if team_name != team_name_base:
+        n = int(team_name[len(team_name_base) :])
+    team_name2 = f"{team_name_base.strip()} {n+1}"
+    return team_name2
+
+
 class DiscordUser(BaseModel):
     id: int
     name: str
@@ -309,10 +318,6 @@ class GoCog(commands.Cog):
         signup_time: Optional[datetime] = None,
     ) -> GoSignup:
 
-        if not team_name:
-            msg = f"Team name required."
-            raise DiscordUserError(msg)
-
         # make sure no players were skipped
         none_seen_at = None
         for i, p in enumerate(players):
@@ -358,23 +363,37 @@ class GoCog(commands.Cog):
             msg = f"A player cannot be on the same team twice."
             raise DiscordUserError(msg)
 
+        if team_name is None:
+            team_name = f"team {random.randint(1000, 9999)}"
+
         go_team_by_roster = self.godb.read_team_with_roster(discord_ids=discord_ids, session=session)
 
-        # if the team name exists with a different name
+        # if the roster exists with a different team_name then use the previous name
         if go_team_by_roster and go_team_by_roster.team_name != team_name:
-            # msg = f'Your team is already signed up with a different name: "{go_team_by_roster.team_name}".'
-            # raise DiscordUserError(msg)
             team_name = go_team_by_roster.team_name
             logger.info(f'In do_signup: team already has name "{team_name}".  Using that name instead.')
 
-        # read_team_with_name can handle team_name=None
-        go_team_by_name = self.godb.read_team_with_name(team_name=team_name, session=session)
+        # loop until we find a unique team name
+        # or we've tried too many times
+        team_name_orig = team_name
+        n = 0
+        while True:
+            n += 1
+            go_team_by_name = self.godb.read_team_with_name(team_name=team_name, session=session)
 
-        # if the team_name already exists make sure it's for our team
-        if go_team_by_name:
-            if not go_team_by_roster or go_team_by_roster.id != go_team_by_name.id:
-                igns = [r.player.pf_player.ign for r in go_team_by_name.rosters]
-                msg = f'Team name "{go_team_by_name.team_name}" is already taken by team {", ".join(igns)}.'
+            if not go_team_by_name:
+                # no team with team_name exists
+                break
+            elif go_team_by_name is go_team_by_roster:
+                # teams are the same
+                break
+            else:
+                # go_team_by_name is not None and is not the same as go_team_by_roster
+                # therefore increment the team name and try again
+                team_name = increment_team_name(team_name)
+
+            if n > 20:
+                msg = f'Team name "{team_name_orig}" is already taken.'
                 raise DiscordUserError(msg)
 
         # if it's an existing team
@@ -483,7 +502,7 @@ class GoCog(commands.Cog):
             new_team_name = signup.team.team_name
 
         if new_team_name is None:
-            new_team_name = f"team_{random.randint(1000, 9999)}"
+            new_team_name = f"team {random.randint(1000, 9999)}"
 
         signup = self.do_signup(
             players=players, team_name=new_team_name, date=date, session=session, signup_time=original_time
