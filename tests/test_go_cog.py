@@ -1,6 +1,7 @@
 from datetime import date as datetype
 
 import pytest
+from sqlalchemy.exc import InvalidRequestError
 
 import _config
 from go.bot.exceptions import DiscordUserError
@@ -356,6 +357,8 @@ def test_update_signup(gocog_preload, session, du1, du2, du3):
     assert len(team.signups) == 1
     assert len(team.rosters) == 1
 
+    assert godb.read_team_with_name(team_name="tname3", session=session) is None
+
 
 def test_rename_team(gocog_preload, godb, session, du1, du2, du3):
     name1 = "tname1"
@@ -395,19 +398,25 @@ def test_cancel_signup(gocog_preload, godb, session, du1, du2, du3):
     assert 2 == godb.signup_count(session=session)
 
     # cancel day 1
-    gocog_preload.do_cancel(player=du2, date=date1, session=session)
+    signup = gocog_preload.do_cancel(player=du2, date=date1, session=session)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
     assert 1 == godb.signup_count(session=session)
+    session.refresh(signup.team)
+    assert signup.team.team_name == "tname1"
+    assert len(signup.team.signups) == 1
+    assert len(signup.team.rosters) == 2
 
     # cancel day 2
     # this will test that the team is deleted when the last session is cancelled
-    gocog_preload.do_cancel(player=du2, date=date2, session=session)
+    signup = gocog_preload.do_cancel(player=du2, date=date2, session=session)
     assert 3 == godb.player_count(session=session)
     assert 0 == godb.roster_count(session=session)
     assert 0 == godb.signup_count(session=session)
     assert 0 == godb.team_count(session=session)
+    with pytest.raises(InvalidRequestError):
+        session.refresh(signup.team)
 
 
 def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
@@ -416,3 +425,18 @@ def test_cancel_signup_fail(gocog_preload, godb, session, du1, du2, du3):
         gocog_preload.do_cancel(player=du3, date=date1, session=session)
     with pytest.raises(DiscordUserError):
         gocog_preload.do_cancel(player=du1, date=date2, session=session)
+
+
+def test_cancel_return_values(gocog_preload, godb, session, du1, du2, du3):
+    signup1 = gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date1, session=session)
+    signup2 = gocog_preload.do_signup(players=[du1, du2], team_name="tname1", date=date2, session=session)
+    assert signup1.team is signup2.team
+
+    team = signup1.team
+
+    signup = gocog_preload.do_cancel(player=du2, date=date1, session=session)
+    assert signup.session_date == date1
+    assert team is signup.team
+
+    signup = gocog_preload.do_cancel(player=du2, date=date2, session=session)
+    assert signup.session_date == date2

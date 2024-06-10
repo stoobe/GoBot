@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 from datetime import date as datetype
+from datetime import datetime
 from typing import List, Optional, Union
 
 import discord
@@ -71,6 +72,7 @@ class GoCog(commands.Cog):
     #   """ /top-command """
     #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
+    #
     def get_channel_date(self, interaction: discord.Interaction, session: Session) -> datetype:
         if interaction.channel_id is None:
             logger.warn(f"interaction.channel_id is None")
@@ -81,8 +83,8 @@ class GoCog(commands.Cog):
             raise DiscordUserError("Signups not enabled on this channel.")
         return date
 
+    #
     def set_rating_if_needed(self, pf_player_id, session) -> Optional[float]:
-
         # make sure the player has a rating
         # if not pull one in from recent career stats
         go_rating = self.godb.get_official_rating(pf_player_id=pf_player_id, session=session)
@@ -104,10 +106,11 @@ class GoCog(commands.Cog):
                     f"In get_rating_default -- setting go_rating for {pf_player_id} to {go_rating:,.2f} from career stats"
                 )
                 session.add(official_rating)
-                session.commit()
+                # session.commit()
 
         return go_rating
 
+    #
     def do_set_ign(self, player: DiscordUser, ign: str, session: Session) -> GoPlayer:
 
         # if GoPlayer doesn't exist create it
@@ -303,6 +306,7 @@ class GoCog(commands.Cog):
         team_name: str,
         date: datetype,
         session: Session,
+        signup_time: Optional[datetime] = None,
     ) -> GoSignup:
 
         if not team_name:
@@ -402,12 +406,7 @@ class GoCog(commands.Cog):
                 msg = f"Could not create team in DB"
                 raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
 
-            # rating_limit = _config.go_rating_limits.get(go_team_by_roster.team_size, None)
-            # if rating_limit is not None and go_team_by_roster.team_rating > rating_limit:
-            #         msg = f'Team "{team_name}" rating {go_team_by_roster.team_rating:,.0f} is over the cap {rating_limit:,.0f}.'
-            #         raise DiscordUserError(msg)
-
-            signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session)
+            signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session, signup_time=signup_time)
 
         except GoDbError as err:
             # godb.add_signup checks that the players aren't on a different team that day
@@ -472,26 +471,31 @@ class GoCog(commands.Cog):
         session: Session,
     ) -> str:
 
-        tpsignup = self.do_cancel(player=player, date=date, session=session)
-        original_time = tpsignup.signup.signup_time
+        # do_cancel will return the signup.team that the player is
+        # signed up for on date.  If not signed up it will throw an error.
+        signup = self.do_cancel(player=player, date=date, session=session)
+        original_time = signup.signup_time
+        old_team_name = signup.team.team_name
 
         if new_team_name:
             new_team_name = new_team_name.strip()
         else:
-            new_team_name = tpsignup.team.team_name
+            new_team_name = signup.team.team_name
 
         if new_team_name is None:
             new_team_name = f"team_{random.randint(1000, 9999)}"
 
-        signup = self.do_signup(players=players, team_name=new_team_name, date=date, session=session)
-        signup.signup_time = original_time
-        session.add(signup)
+        signup = self.do_signup(
+            players=players, team_name=new_team_name, date=date, session=session, signup_time=original_time
+        )
 
         team = signup.team
+        session.commit()
+        session.refresh(team)
+
         igns = [r.player.pf_player.ign for r in team.rosters]
 
-        msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
-        msg += f"\nThere are {len(tpsignup.team.signups)} signups still active for that team."
+        msg = f'Cancelled "{old_team_name}" for session on {date}.'
         msg += "\n"
         msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
         msg += f"\nTeam GO Rating is {team.team_rating:,.0f}."
@@ -532,6 +536,8 @@ class GoCog(commands.Cog):
                 players.append(convert_user(new_player3) if new_player3 else None)
 
                 msg = self.do_update_signup(player, players, new_team_name, date, session)
+                session.commit()
+
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
@@ -540,54 +546,65 @@ class GoCog(commands.Cog):
                 logger.warn(f"signup resulted in error code {err.code}: {err.message}")
                 await interaction.response.send_message(err.message)
 
-    def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoTeamPlayerSignup:
+    #
+    # Does NOT commit or refresh
+    #
+    def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoSignup:
         tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
         if len(tpsignups) == 0:
             msg = f"Player {player.name} is not signed up on {date}."
             raise DiscordUserError(msg)
 
         if len(tpsignups) > 1:
-            logger.error(f"Somehow player {player.name} has signed up more than once on {date}")
-
-        for tpsignup in tpsignups:
-            logger.info(f"cancel row {tpsignup}")
-            session.delete(tpsignup.signup)
-        session.commit()
+            msg = f"Somehow player {player.name} has signed up more than once on {date}. Ask @GO_STOOOBE to help fix this."
+            logger.error(msg)
+            raise DiscordUserError(msg)
 
         tpsignup = tpsignups[0]
-        session.refresh(tpsignup.team)
-        session.refresh(tpsignup.player)
+        signup_count_before = len(tpsignup.team.signups)
 
-        if len(tpsignup.team.signups) == 0:
+        logger.info(f"cancel row {tpsignup}")
+        session.delete(tpsignup.signup)
+
+        # if this was the last signup for the team
+        # delete the team too
+        if signup_count_before == 1:
             session.delete(tpsignup.team)
-            session.commit()
 
-        return tpsignup
+        return tpsignup.signup
 
-    @go_group.command(description="Cancel a signup for a day")
-    async def cancel(self, interaction: discord.Interaction):  # type: ignore
-
-        player = convert_user(interaction.user)
-
+    #
+    # interact with user via Discord API
+    async def handle_cancel(self, func_name: str, interaction: discord.Interaction, player: DiscordUser):
         logger.info("")
-        logger.info(f"GoCog.cancel names ({interaction.channel}, {player.name})")
-        logger.info(f"GoCog.cancel ids   ({interaction.channel_id}, {player.id})")
+        logger.info(f"{func_name} names ({interaction.channel}, {player.name})")
+        logger.info(f"{func_name} ids   ({interaction.channel_id}, {player.id})")
 
         try:
             with Session(self.engine) as session:
                 date = self.get_channel_date(interaction, session)
 
-                tpsignup = self.do_cancel(player=player, date=date, session=session)
+                signup = self.do_cancel(player=player, date=date, session=session)
 
-                msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
-                msg += f"\nThere are {len(tpsignup.team.signups)} signups still active for the team."
+                team = signup.team
+                session.commit()
+                session.refresh(team)
+
+                msg = f'Cancelled "{team.team_name}" for session on {date}.'
+                msg += f"\nThere are {len(team.signups)} signups still active for the team."
                 logger.info(msg)
                 await interaction.response.send_message(msg)
-
         except DiscordUserError as err:
-            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
+            logger.warn(f"{func_name} resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
+    @go_group.command(description="Cancel a signup for a day")
+    async def cancel(self, interaction: discord.Interaction):  # type: ignore
+        player = convert_user(interaction.user)
+        await self.handle_cancel("cancel", interaction, player)
+
+    #
     @go_group.command(description="List the teams playing today")
     async def list_teams(self, interaction: discord.Interaction):
         try:
@@ -624,7 +641,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
+            logger.warn(f"%(funcName)s resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     @admin_group.command(description="Syncs bot commands")
@@ -690,36 +707,23 @@ class GoCog(commands.Cog):
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
     @admin_group.command(description="Admin tool to cancel a signup for a day")
     async def cancel(self, interaction: discord.Interaction, player: discord.Member):
+        if interaction.user.id != _config.owner_id:
+            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
+            await interaction.response.send_message("You dont have permission to use this command.")
+            return
 
-        player2 = convert_user(player)
+        converted_player = convert_user(player)
+        await self.handle_cancel("admin_cancel", interaction, converted_player)
 
-        logger.info("")
-        logger.info(f"GoCog.admin.cancel names ({interaction.channel}, {player2.name})")
-        logger.info(f"GoCog.admin.cancel ids   ({interaction.channel_id}, {player2.id})")
-
-        try:
-
-            with Session(self.engine) as session:
-                date = self.get_channel_date(interaction, session)
-
-                tpsignup = self.do_cancel(player=player2, date=date, session=session)
-
-                msg = f'Cancelled "{tpsignup.team.team_name}" for session on {date}.'
-                msg += f"\nThere are {len(tpsignup.team.signups)} signups still active for the team."
-                logger.info(msg)
-                await interaction.response.send_message(msg)
-
-        except DiscordUserError as err:
-            logger.warn(f"do_cancel resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message)
-
+    #
     @admin_group.command(description="Set the session date for this channel")
     async def set_session_date(self, interaction: discord.Interaction, date: str):
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
-            await interaction.response.send_message("You dont have permission to use this command!")
+            await interaction.response.send_message("You dont have permission to use this command.")
             return
 
         logger.info(f"Running go_admin.set_session_date({date})")

@@ -87,7 +87,7 @@ def main():
                         session=session, pf_player_id=player.id, ign=player.ign, last_login=player.last_login
                     )
                 else:
-                    pfdb.create_player(player=player, session=session)
+                    session.add(player)
 
                 player = pfdb.read_player(pf_player_id=player.id, session=session)
                 if player is None:

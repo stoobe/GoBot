@@ -1,4 +1,5 @@
 from datetime import date as datetype
+from datetime import datetime
 from typing import List, Optional, Set
 
 from pydantic import BaseModel
@@ -140,7 +141,9 @@ class GoDB:
         statement = select(func.count(GoSignup.team_id))  # type: ignore
         return session.exec(statement).one()
 
-    def add_signup(self, team: GoTeam, date: datetype, session: Session) -> GoSignup:
+    def add_signup(
+        self, team: GoTeam, date: datetype, session: Session, signup_time: Optional[datetime] = None
+    ) -> GoSignup:
         logger.info("Adding new signup to DB")
 
         if team.id is None:
@@ -156,7 +159,10 @@ class GoDB:
                     f'Player {player.discord_name} is already signed up for {date} for team "{tp.team.team_name}".'
                 )
 
-        signup = GoSignup(team_id=team.id, session_date=date)
+        if signup_time is None:
+            signup_time = datetime.now()
+
+        signup = GoSignup(team_id=team.id, session_date=date, signup_time=signup_time)
         session.add(signup)
         session.commit()
         return signup
