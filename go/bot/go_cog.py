@@ -497,7 +497,7 @@ class GoCog(commands.Cog):
 
         msg = f'Cancelled "{old_team_name}" for session on {date}.'
         msg += "\n"
-        msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+        msg += f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
         msg += f"\nTeam GO Rating is {team.team_rating:,.0f}."
         msg += f"\nThis is signup #{len(team.signups)} for the team."
         return msg
