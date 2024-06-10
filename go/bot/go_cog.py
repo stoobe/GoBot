@@ -36,6 +36,11 @@ def get_name(member: Union[discord.Member, discord.User, None]) -> str:
         raise Exception(f"unreachable ")
 
 
+def escmd(text: str) -> str:
+    """Escape markdown characters in text."""
+    return text.replace("*", "\\*").replace("_", "\\_").replace("~", "\\~").replace("`", "\\`")
+
+
 class DiscordUser(BaseModel):
     id: int
     name: str
@@ -211,13 +216,13 @@ class GoCog(commands.Cog):
                     # incase it's missing from the DB for some reason
                     team_rating = team.team_rating or 0
                     igns = sorted([r.player.pf_player.ign for r in team.rosters])
-                    msg += f'  - {team.team_name} *({team.team_rating:,.0f})* -- {len(team.signups)} signups -- {", ".join(igns)}\n'
+                    msg += f'  - {escmd(team.team_name)} *({team.team_rating:,.0f})* -- {len(team.signups)} signups -- {", ".join([escmd(_) for _ in igns])}\n'
                     for signup in team.signups:
                         signups.append(signup)
 
                 msg += f"- Sessions:\n"
                 for signup in signups:
-                    msg += f"  - {signup.session_date} -- {signup.team.team_name}\n"
+                    msg += f"  - {signup.session_date} -- {escmd(signup.team.team_name)}\n"
 
             return msg
 
@@ -320,6 +325,7 @@ class GoCog(commands.Cog):
 
         go_players = []
         discord_ids = set()
+        players_to_set_ign = []
 
         for player in players:
             if player is None:
@@ -328,14 +334,21 @@ class GoCog(commands.Cog):
             go_player = self.godb.read_player(discord_id=player.id, session=session)
             go_players.append(go_player)
             if go_player is None or go_player.pf_player is None:
-                msg = f"Player {player.name} needs run `/go set_ign`."
-                raise DiscordUserError(msg)
+                # store the players that need to set their IGN
+                # so we can tell them all at once
+                players_to_set_ign.append(go_player)
+            else:
+                # make sure all players have ratings
+                player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
+                if player_rating is None:
+                    msg = f"Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this."
+                    raise DiscordUserError(msg)
 
-            # make sure all players have ratings
-            player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
-            if player_rating is None:
-                msg = f"Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this."
-                raise DiscordUserError(msg)
+        if players_to_set_ign:
+            msg = ""
+            for player in players_to_set_ign:
+                msg += f"- Player {player.name} needs run `/go set_ign`.\n"
+            raise DiscordUserError(msg)
 
         if len(discord_ids) < len(players):
             msg = f"A player cannot be on the same team twice."
@@ -602,9 +615,9 @@ class GoCog(commands.Cog):
                             session.refresh(p.pf_player)
                             if players_str:
                                 players_str += ", "
-                            players_str += p.pf_player.ign
+                            players_str += escmd(p.pf_player.ign)
                         rating_str = f"{team.team_rating:,.0f}" if team.team_rating else "None"
-                        msg += f"{chr(ord('A')+i)}: **{team.team_name}** (*{rating_str}*) -- {players_str}\n"
+                        msg += f"{chr(ord('A')+i)}: **{escmd(team.team_name)}** (*{rating_str}*) -- {players_str}\n"
                     msg = f"**teams:** {len(teams)}\n**players:** {player_count}\n\n" + msg
 
                 logger.info(msg)
