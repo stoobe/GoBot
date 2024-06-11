@@ -62,6 +62,10 @@ def convert_user(user: Union[discord.Member, discord.User]):
 
 class GoCog(commands.Cog):
 
+    go_group = app_commands.Group(name="go", description="GO League Commands")
+    admin_group = app_commands.Group(name="goadmin", description="GO Admin Commands")
+
+    #
     def __init__(self, bot: commands.Bot) -> None:
         # if not isinstance(bot, GoBot):
         #     raise TypeError(f"GoCog must be initialized with a GoBot instance, not {type(bot)}")
@@ -69,17 +73,6 @@ class GoCog(commands.Cog):
         self.engine = bot.engine  # type: ignore
         self.godb: GoDB = bot.godb  # type: ignore
         self.pfdb: PlayfabDB = bot.pfdb  # type: ignore
-
-    go_group = app_commands.Group(name="go", description="GO League Commands")
-    admin_group = app_commands.Group(name="goadmin", description="GO Admin Commands")
-
-    # Above, we declare a command Group, in discord terms this is a parent command
-    # We define it within the class scope (not an instance scope) so we can use it as a decorator.
-    # This does have namespace caveats but i don't believe they're worth outlining in our needs.
-    # @app_commands.command(name="top-command")
-    # async def my_top_command(self, interaction: discord.Interaction) -> None:
-    #   """ /top-command """
-    #   await interaction.response.send_message("Hello from top level command!", ephemeral=True)
 
     #
     def get_channel_date(self, interaction: discord.Interaction, session: Session) -> datetype:
@@ -173,11 +166,13 @@ class GoCog(commands.Cog):
         session.commit()
         return go_p
 
-    @go_group.command(description="Set your In Game Name")
-    async def set_ign(self, interaction: discord.Interaction, ign: str):  # type: ignore
-        player = convert_user(interaction.user)
-        logger.info(f"Running set_ign({player.name}, {ign})")
-
+    #
+    # Interact with user via Discord API
+    # Calls do_set_ign and set_rating_if_needed
+    # Put in it's own function so regular and admin set_ign can reuse it
+    #
+    async def handle_set_ign(self, func_name: str, interaction: discord.Interaction, player: DiscordUser, ign: str):
+        logger.info(f"Running {func_name}({player.name}, {ign})")
         try:
             with Session(self.engine) as session:
 
@@ -207,6 +202,13 @@ class GoCog(commands.Cog):
             logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
+    @go_group.command(description="Set your In Game Name")
+    async def set_ign(self, interaction: discord.Interaction, ign: str):
+        player = convert_user(interaction.user)
+        await self.handle_set_ign("set_ign", interaction, player, ign)
+
+    #
     def do_player_info(self, player: DiscordUser) -> str:
         with Session(self.engine) as session:
             go_p = self.godb.read_player(discord_id=player.id, session=session)
@@ -237,6 +239,7 @@ class GoCog(commands.Cog):
 
             return msg
 
+    #
     @go_group.command(description="Get info for a player")
     async def player_info(
         self,
@@ -258,6 +261,7 @@ class GoCog(commands.Cog):
             logger.warn(f"player_info resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message, ephemeral=True)
 
+    #
     def do_rename_team(self, new_team_name: str, player: DiscordUser, date: datetype, session: Session) -> GoTeam:
         tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
         if len(tpsignups) == 0:
@@ -272,6 +276,7 @@ class GoCog(commands.Cog):
         session.commit()
         return team
 
+    #
     @go_group.command(description="Rename your team in this session")
     async def rename_team(
         self,
@@ -306,6 +311,7 @@ class GoCog(commands.Cog):
             logger.warn(f"rename_team resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
     def do_signup(
         self,
         players: List[Optional[DiscordUser]],
@@ -431,6 +437,7 @@ class GoCog(commands.Cog):
 
         return signup
 
+    #
     @go_group.command(description="Sign up a team for this session")
     async def signup(
         self,
@@ -478,6 +485,7 @@ class GoCog(commands.Cog):
             logger.warn(f"signup resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
     def do_change_signup(
         self,
         player,
@@ -518,6 +526,7 @@ class GoCog(commands.Cog):
         msg += f"\nThis is signup #{len(team.signups)} for the team."
         return msg
 
+    #
     @go_group.command(description="Change your signup and keep your spot in line")
     async def change_signup(
         self,
@@ -621,7 +630,7 @@ class GoCog(commands.Cog):
 
     #
     @go_group.command(description="Cancel your signup for this session")
-    async def cancel(self, interaction: discord.Interaction):  # type: ignore
+    async def cancel(self, interaction: discord.Interaction):
         player = convert_user(interaction.user)
         await self.handle_cancel("cancel", interaction, player)
 
@@ -674,6 +683,7 @@ class GoCog(commands.Cog):
             logger.warn(f"%(funcName)s resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
+    #
     @admin_group.command(description="Syncs bot commands")
     async def sync_commands(self, interaction: discord.Interaction):
         logger.info(f"Command sync called by user {get_name(interaction.user)}.")
@@ -689,6 +699,7 @@ class GoCog(commands.Cog):
         await interaction.user.send("Command tree synced.")
         logger.info("Command tree synced.")
 
+    #
     @admin_group.command(description="Use with caution. Clears all the bot commands so they can be reloaded.")
     async def wipe_commands(self, interaction: discord.Interaction):
         logger.info(f"Command clear_commands alled by user {get_name(interaction.user)}.")
@@ -706,42 +717,21 @@ class GoCog(commands.Cog):
         await interaction.user.send("clear_commands complete.")
         logger.info(f"clear_commands complete.")
 
-    @admin_group.command(description="Admin tool to set a user's In Game Name")
-    async def set_ign(self, interaction: discord.Interaction, user: discord.Member, ign: str):
+    #
+    @admin_group.command(name="set_ign", description="Admin tool to set a user's In Game Name")
+    async def admin_set_ign(self, interaction: discord.Interaction, user: discord.Member, ign: str):
+
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run set_ign")
             await interaction.response.send_message("You dont have permission to use this command!")
             return
 
         player = convert_user(user)
-        logger.info(f"Running go_admin.set_ign({player.name}, {ign})")
-
-        try:
-            with Session(self.engine) as session:
-
-                go_p = self.do_set_ign(player=player, ign=ign, session=session)
-                if go_p.pf_player_id is None or go_p.pf_player is None:
-                    msg = f"Could not set the IGN for {player.name}."
-                    raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
-
-                go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
-                if go_rating is None:
-                    msg = f"Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this."
-                    raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
-
-                session.commit()
-
-                msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
-                logger.info(msg)
-                await interaction.response.send_message(msg)
-
-        except DiscordUserError as err:
-            logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message)
+        await self.handle_set_ign("admin_set_ign", interaction, player, ign)
 
     #
-    @admin_group.command(description="Admin tool to cancel a signup")
-    async def cancel(self, interaction: discord.Interaction, player: discord.Member):
+    @admin_group.command(name="cancel", description="Admin tool to cancel a signup")
+    async def admin_cancel(self, interaction: discord.Interaction, player: discord.Member):
         if interaction.user.id != _config.owner_id:
             logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
             await interaction.response.send_message("You dont have permission to use this command.")
@@ -779,6 +769,7 @@ class GoCog(commands.Cog):
             logger.warn(msg)
             await interaction.response.send_message(msg)
 
+    #
     @admin_group.command(description="Get the session date for this channel")
     async def get_session_date(self, interaction: discord.Interaction):
         if interaction.user.id != _config.owner_id:
@@ -799,6 +790,7 @@ class GoCog(commands.Cog):
             logger.info(msg)
             await interaction.response.send_message(msg)
 
+    #
     async def cog_load(self):
         logger.info(f"cog_load()")
 

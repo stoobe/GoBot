@@ -14,8 +14,8 @@ logger = create_logger(__name__)
 class PlayfabDB:
 
     #
-    def __init__(self, engine):
-        self.engine = engine
+    def __init__(self):
+        pass
 
     #
     def create_player(self, player: PfPlayer, session: Session) -> None:

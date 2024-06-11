@@ -14,8 +14,8 @@ class GoBot(commands.Bot):
     def __init__(self, *, command_prefix, intents: discord.Intents, engine: Engine):
         super().__init__(command_prefix=command_prefix, intents=intents)
         self.engine = engine
-        self.godb = GoDB(engine=self.engine)
-        self.pfdb = PlayfabDB(engine=self.engine)
+        self.godb = GoDB()
+        self.pfdb = PlayfabDB()
 
     # In this basic example, we just synchronize the app commands to one guild.
     # Instead of specifying a guild to every command, we copy over our global commands instead.
@@ -25,6 +25,7 @@ class GoBot(commands.Bot):
         logger.info(f"setup_hook start commands {[c.qualified_name for c in self.tree.walk_commands()]}")
 
         # # emergency resync, otherwise use /zadmin sync from Discord
+        # MY_GUILD = discord.Object(id=_config.guild_id)
         # self.tree.copy_global_to(guild=MY_GUILD)
         # await self.tree.sync(guild=MY_GUILD)
 

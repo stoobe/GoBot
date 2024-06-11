@@ -44,7 +44,7 @@ def main():
     pfapi = PlayfabApi()
     pfapi.login_to_playfab()
 
-    pfdb = PlayfabDB(engine=engine)
+    pfdb = PlayfabDB()
 
     with Session(engine) as session:
 

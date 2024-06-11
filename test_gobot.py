@@ -12,14 +12,12 @@ from go.bot.playfab_db import PlayfabDB
 
 logger = create_logger(__name__)
 
-MY_GUILD = discord.Object(id=_config.guild_id)
-
 
 class MyBot:
     def __init__(self, engine: Engine):
         self.engine = engine
-        self.godb = GoDB(engine=self.engine)
-        self.pfdb = PlayfabDB(engine=self.engine)
+        self.godb = GoDB()
+        self.pfdb = PlayfabDB()
 
 
 def main():

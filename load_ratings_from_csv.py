@@ -28,7 +28,7 @@ def main():
     engine = create_engine(_config.godb_url, echo=_config.godb_echo)
     SQLModel.metadata.create_all(engine)
 
-    pfdb = PlayfabDB(engine=engine)
+    pfdb = PlayfabDB()
 
     pfapi = PlayfabApi()
     pfapi.login_to_playfab()

@@ -239,7 +239,7 @@ def session(engine, scope="session") -> Generator[Session, None, None]:
 
 @pytest.fixture
 def pfdb_instance(engine, scope="session") -> Generator[PlayfabDB, None, None]:
-    pfdb = PlayfabDB(engine=engine)
+    pfdb = PlayfabDB()
     yield pfdb
 
 
@@ -254,7 +254,7 @@ def pfdb(pfdb_instance, session, scope="function") -> Generator[PlayfabDB, None,
 
 @pytest.fixture
 def godb_instance(engine, scope="session") -> Generator[GoDB, None, None]:
-    godb = GoDB(engine=engine)
+    godb = GoDB()
     yield godb
 
 

@@ -26,14 +26,8 @@ class GoTeamPlayerSignup(BaseModel):
 class GoDB:
 
     #
-    def __init__(self, engine):
-        self.engine = engine
-
-    #
-    # def create_player(self, go_player: GoPlayer, session: Session) -> None:
-    #     logger.info("Creating GoPlayer in DB")
-    #     session.add(go_player)
-    #     session.commit()
+    def __init__(self):
+        pass
 
     #
     def player_exists(self, discord_id: int, session: Session) -> bool:
