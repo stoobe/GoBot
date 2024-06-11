@@ -724,12 +724,12 @@ class GoCog(commands.Cog):
                     msg = f"Could not set the IGN for {player.name}."
                     raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
 
-                session.commit()
-
                 go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
                 if go_rating is None:
                     msg = f"Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this."
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
+
+                session.commit()
 
                 msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
                 logger.info(msg)
