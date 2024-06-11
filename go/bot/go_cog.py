@@ -86,10 +86,10 @@ class GoCog(commands.Cog):
         return date
 
     #
-    def set_rating_if_needed(self, pf_player_id, session) -> Optional[float]:
+    def set_rating_if_needed(self, pf_player_id, session, season: str) -> Optional[float]:
         # make sure the player has a rating
         # if not pull one in from recent career stats
-        go_rating = self.godb.get_official_rating(pf_player_id=pf_player_id, session=session)
+        go_rating = self.godb.get_official_rating(pf_player_id, session, season)
 
         if go_rating is None:
             go_rating = self.pfdb.calc_rating_from_stats(pf_player_id=pf_player_id, session=session)
@@ -181,14 +181,14 @@ class GoCog(commands.Cog):
                     msg = f"Could not set the IGN for {player.name}."
                     raise DiscordUserError(msg, code=ErrorCode.MISC_ERROR)
 
-                go_rating = self.set_rating_if_needed(go_p.pf_player_id, session)
+                go_rating = self.set_rating_if_needed(go_p.pf_player_id, session, season=_config.go_season)
                 if go_rating is None:
                     msg = f"Could not find a go_rating for {ign}.  Reach out to @GO_STOOOBE to help fix this."
                     raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
 
                 session.commit()
 
-                go_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+                go_rating = self.godb.get_official_rating(go_p.pf_player_id, session, season=_config.go_season)
                 msg = f'IGN for {player.name} set to "{go_p.pf_player.ign}" with GO Rating {go_rating:,.0f}'
 
                 stats = go_p.pf_player.career_stats[-1]
@@ -217,7 +217,7 @@ class GoCog(commands.Cog):
             else:
                 msg = f"- IGN: {go_p.pf_player.ign}\n"
 
-                player_rating = self.godb.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+                player_rating = self.godb.get_official_rating(go_p.pf_player_id, session, season=_config.go_season)
                 msg += f"- GO Rating: {player_rating if player_rating else 0.0:,.0f}\n"
 
                 msg += f"- Playfab ID: {as_playfab_id(go_p.pf_player_id)}\n"
@@ -351,7 +351,7 @@ class GoCog(commands.Cog):
                 players_to_set_ign.append(player)
             else:
                 # make sure all players have ratings
-                player_rating = self.godb.get_official_rating(pf_player_id=go_player.pf_player_id, session=session)
+                player_rating = self.godb.get_official_rating(go_player.pf_player_id, session, season=_config.go_season)
                 if player_rating is None:
                     msg = f"Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this."
                     raise DiscordUserError(msg)
@@ -422,6 +422,7 @@ class GoCog(commands.Cog):
                     go_players=go_players,
                     session=session,
                     rating_limit=rating_limit,
+                    season=_config.go_season,
                 )
 
             if go_team_by_roster is None:

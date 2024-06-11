@@ -7,13 +7,10 @@ from typing import List, Optional, Set
 from pydantic import BaseModel
 from sqlmodel import Session, delete, func, select
 
-import _config
-from go.bot.exceptions import DataNotDeletedError, GoDbError
+from go.bot.exceptions import GoDbError
 from go.bot.logger import create_logger
 from go.bot.models import GoPlayer, GoRatings, GoRoster, GoSchedule, GoSignup, GoTeam
 
-# filename = os.path.splitext(os.path.basename(__file__))[0]
-# logger = create_logger(logger_name=filename)
 logger = create_logger(__name__)
 
 
@@ -78,7 +75,8 @@ class GoDB:
         team_name: str,
         go_players: List[GoPlayer],
         session: Session,
-        rating_limit: Optional[float] = None,
+        rating_limit: Optional[float],
+        season: str,
     ) -> GoTeam:
         logger.info(f"Creating GoTeam {team_name = } in DB")
         ids = {p.discord_id for p in go_players}
@@ -93,7 +91,7 @@ class GoDB:
 
         team_rating = 0.0
         for go_p in go_players:
-            player_rating = self.get_official_rating(pf_player_id=go_p.pf_player_id, session=session)
+            player_rating = self.get_official_rating(go_p.pf_player_id, session, season)
             if player_rating is None:
                 team_rating = None
                 break
@@ -292,9 +290,9 @@ class GoDB:
         session.commit()
 
     #
-    def get_official_rating(self, pf_player_id, session: Session) -> Optional[float]:
+    def get_official_rating(self, pf_player_id, session: Session, season: str) -> Optional[float]:
         statement = select(GoRatings).where(GoRatings.rating_type == "official")
-        statement = statement.where(GoRatings.season == _config.go_season)
+        statement = statement.where(GoRatings.season == season)
         statement = statement.where(GoRatings.pf_player_id == pf_player_id)
         rating = session.exec(statement).first()
         if rating is None:

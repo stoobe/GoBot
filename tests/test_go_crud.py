@@ -21,6 +21,8 @@ date6 = datetype(2023, 1, 6)
 channel_id1 = 1111
 channel_id2 = 2222
 
+seas = _config.go_season
+
 
 def test_create_and_read_player(godb, session, go_p1: GoPlayer):
     # Write Player to DB
@@ -77,7 +79,7 @@ def test_create_and_read_team_and_roster(gocog_preload, godb, session, go_p1, go
     assert 0 == godb.team_count(session=session)
     assert 0 == godb.roster_count(session=session)
 
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
     assert 3 == godb.player_count(session=session)
     assert 1 == godb.team_count(session=session)
     assert 2 == godb.roster_count(session=session)
@@ -93,7 +95,7 @@ def test_create_and_read_team_and_roster(gocog_preload, godb, session, go_p1, go
     assert len(go_p1.rosters) == 1
     assert len(go_p2.rosters) == 1
 
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
     assert 3 == godb.player_count(session=session)
     assert 2 == godb.team_count(session=session)
     assert 3 == godb.roster_count(session=session)
@@ -119,8 +121,8 @@ def test_create_and_read_team_and_roster(gocog_preload, godb, session, go_p1, go
 
 def test_read_team_with_roster(gocog_preload, godb, session, go_p1, go_p2):
 
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     teama = godb.read_team_with_roster(discord_ids={go_p1.discord_id, go_p2.discord_id}, session=session)
     assert teama.id == team1.id
@@ -136,8 +138,8 @@ def test_read_team_with_roster(gocog_preload, godb, session, go_p1, go_p2):
 
 
 def test_read_team_with_name(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     teama = godb.read_team_with_name(team_name="tn1", session=session)
     assert teama.id == team1.id
@@ -153,8 +155,8 @@ def test_read_team_with_name(gocog_preload, godb, session, go_p1, go_p2):
 
 
 def test_read_team(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     teama = godb.read_team(team_id=team1.id, session=session)
     assert team1 is teama
@@ -164,37 +166,37 @@ def test_read_team(gocog_preload, godb, session, go_p1, go_p2):
 
 
 def test_create_team_duplicate_roster(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     with pytest.raises(GoDbError):
-        teamx = godb.create_team(team_name="anything", go_players=[go_p1, go_p2], session=session)
+        teamx = godb.create_team("anything", [go_p1, go_p2], session, None, seas)
 
     with pytest.raises(GoDbError):
-        teamx = godb.create_team(team_name="anything else", go_players=[go_p1], session=session)
+        teamx = godb.create_team("anything else", [go_p1], session, None, seas)
 
 
 def test_create_team_duplicate_player(gocog_preload, godb, session, go_p1, go_p2):
     with pytest.raises(GoDbError):
-        team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p1], session=session)
+        team1 = godb.create_team("tn1", [go_p1, go_p1], session, None, seas)
 
 
 def test_create_team_missing_rating(gocog_preload, godb, session, go_p1, go_p2):
     # works when p1 has a rating
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
 
     statement = delete(GoRatings).where(GoRatings.pf_player_id == go_p1.pf_player_id)
     session.execute(statement)
 
     # fails when ratings removed
     with pytest.raises(GoDbError):
-        team1 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+        team1 = godb.create_team("tn2", [go_p1], session, None, seas)
 
 
 def test_create_and_read_player_signups(gocog_preload, godb, session, go_p1, go_p2):
     assert 0 == godb.team_count(session=session)
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     assert 0 == godb.signup_count(session=session)
     godb.add_signup(team=team1, date=date1, session=session)
@@ -219,11 +221,11 @@ def test_create_and_read_player_signups(gocog_preload, godb, session, go_p1, go_
 
 
 def test_read_player_signups_with_filters(gocog_preload, godb, session, go_p1, go_p2, go_p3):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1], session=session)
-    team12 = godb.create_team(team_name="tn12", go_players=[go_p1, go_p2], session=session)
-    team123 = godb.create_team(team_name="tn123", go_players=[go_p1, go_p2, go_p3], session=session)
-    team23 = godb.create_team(team_name="tn23", go_players=[go_p2, go_p3], session=session)
-    team3 = godb.create_team(team_name="tn3", go_players=[go_p3], session=session)
+    team1 = godb.create_team("tn1", [go_p1], session, None, seas)
+    team12 = godb.create_team("tn12", [go_p1, go_p2], session, None, seas)
+    team123 = godb.create_team("tn123", [go_p1, go_p2, go_p3], session, None, seas)
+    team23 = godb.create_team("tn23", [go_p2, go_p3], session, None, seas)
+    team3 = godb.create_team("tn3", [go_p3], session, None, seas)
 
     godb.add_signup(team=team1, date=date1, session=session)
     godb.add_signup(team=team23, date=date1, session=session)
@@ -263,8 +265,8 @@ def test_read_player_signups_with_filters(gocog_preload, godb, session, go_p1, g
 
 
 def test_signups_cascading_delete(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     godb.add_signup(team=team1, date=date1, session=session)
     godb.add_signup(team=team2, date=date2, session=session)
@@ -279,7 +281,7 @@ def test_signups_cascading_delete(gocog_preload, godb, session, go_p1, go_p2):
 
 
 def test_signups_same_day_twice(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
 
     godb.add_signup(team=team1, date=date1, session=session)
 
@@ -295,8 +297,8 @@ def test_signups_with_missing_team_id(gocog_preload, godb, session):
 
 
 def test_signups_player_same_day_twice(gocog_preload, godb, session, go_p1, go_p2):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     godb.add_signup(team=team1, date=date1, session=session)
     godb.add_signup(team=team2, date=date2, session=session)
@@ -336,25 +338,25 @@ def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
     session.refresh(go_p1)
     session.refresh(pf_p1)
 
-    rating1 = GoRatings(pf_player_id=pf_p1.id, season=_config.go_season, rating_type="official", go_rating=1234.5)
+    rating1 = GoRatings(pf_player_id=pf_p1.id, season=seas, rating_type="official", go_rating=1234.5)
     print("rating1", rating1)
     session.add(rating1)
     session.commit()
 
-    go_rating = godb.get_official_rating(pf_player_id=pf_p1.id, session=session)
+    go_rating = godb.get_official_rating(pf_player_id=pf_p1.id, session=session, season=seas)
     assert go_rating == 1234.5
 
 
 def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
-    team1 = godb.create_team(team_name="tn1", go_players=[go_p1], session=session)
+    team1 = godb.create_team("tn1", [go_p1], session, None, seas)
     team1.team_rating = 1234.56
     session.add(team1)
 
-    team12 = godb.create_team(team_name="tn12", go_players=[go_p1, go_p2], session=session)
-    team2 = godb.create_team(team_name="tn2", go_players=[go_p2], session=session)
-    team123 = godb.create_team(team_name="tn123", go_players=[go_p1, go_p2, go_p3], session=session)
-    team23 = godb.create_team(team_name="tn23", go_players=[go_p2, go_p3], session=session)
-    team3 = godb.create_team(team_name="tn3", go_players=[go_p3], session=session)
+    team12 = godb.create_team("tn12", [go_p1, go_p2], session, None, seas)
+    team2 = godb.create_team("tn2", [go_p2], session, None, seas)
+    team123 = godb.create_team("tn123", [go_p1, go_p2, go_p3], session, None, seas)
+    team23 = godb.create_team("tn23", [go_p2, go_p3], session, None, seas)
+    team3 = godb.create_team("tn3", [go_p3], session, None, seas)
 
     godb.add_signup(team=team1, date=date1, session=session)
     godb.add_signup(team=team23, date=date1, session=session)

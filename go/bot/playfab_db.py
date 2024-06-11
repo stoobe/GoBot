@@ -3,7 +3,6 @@ from typing import List, Optional
 
 from sqlmodel import Session, delete, func, select
 
-import _config
 from go.bot.exceptions import DataNotDeletedError, PlayerNotFoundError
 from go.bot.logger import create_logger
 from go.bot.models import PfCareerStats, PfIgnHistory, PfPlayer
