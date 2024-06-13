@@ -41,9 +41,28 @@ def is_playfab_str(s):
 
 class PlayfabApi:
 
+    #
     def __init__(self):
         self.session_ticket = None
 
+    #
+    def login_to_playfab(self) -> None:
+        payload = {
+            "TitleId": _config.playfab_title_id,
+            "Username": _config.playfab_user,
+            "Email": _config.playfab_email,
+            "Password": _config.playfab_pass,
+        }
+
+        response = self.run_request("LoginWithEmailAddress", payload)
+        if response is None:
+            raise Exception("Failed to login to Playfab")
+
+        response_data = response.json()
+        self.session_ticket = response_data["data"]["SessionTicket"]
+        logger.info(f"login_to_playfab: session ticket set")
+
+    #
     def run_request(self, command: str, payload: dict) -> Optional[requests.Response]:
 
         headers = {"Content-Type": "application/json"}
@@ -63,6 +82,7 @@ class PlayfabApi:
             )
             return None
 
+    #
     def get_player_career_stats(self, player_id: int) -> PfCareerStats:
 
         payload = {
@@ -101,10 +121,28 @@ class PlayfabApi:
         )
         return stats
 
-    def get_player_from_account_info(self, player_id: int) -> Optional[PfPlayer]:
+    #
+    def get_player_from_account_info(
+        self, player_id: Optional[int] = None, playfab_id: Optional[str] = None
+    ) -> Optional[PfPlayer]:
+
+        if player_id is None:
+            if playfab_id is None:
+                # both None, no player to search for
+                return None
+            else:
+                player_id = as_player_id(playfab_id)
+        else:
+            if playfab_id is None:
+                playfab_id = as_playfab_id(player_id)
+            else:
+                # make sure playfab_id and player_id are the same player
+                playfab_id2 = as_playfab_id(player_id)
+                assert playfab_id == playfab_id2
+
         try:
             payload = {
-                "PlayFabId": as_playfab_id(player_id),
+                "PlayFabId": playfab_id,
                 "InfoRequestParameters": {
                     "GetPlayerProfile": True,
                     "GetUserAccountInfo": False,
@@ -137,22 +175,7 @@ class PlayfabApi:
             logger.error(e)
             return None
 
-    def login_to_playfab(self) -> None:
-        payload = {
-            "TitleId": _config.playfab_title_id,
-            "Username": _config.playfab_user,
-            "Email": _config.playfab_email,
-            "Password": _config.playfab_pass,
-        }
-
-        response = self.run_request("LoginWithEmailAddress", payload)
-        if response is None:
-            raise Exception("Failed to login to Playfab")
-
-        response_data = response.json()
-        self.session_ticket = response_data["data"]["SessionTicket"]
-        logger.info(f"login_to_playfab: session ticket set")
-
+    #
     @define
     class LeaderboardRow:
         player_id: int
@@ -162,6 +185,8 @@ class PlayfabApi:
         account_created: datetime
         last_login: datetime
 
+    #
+    # stat_name options = CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal
     def get_leaderboard(self, start_rank: int, batchsize: int, stat_name: str = "CareerWins") -> List[LeaderboardRow]:
         payload = {
             "MaxResultsCount": batchsize,
@@ -205,3 +230,18 @@ class PlayfabApi:
 
         logger.info(f"get_leaderboard() -- returning {len(leaderboard)} items")
         return leaderboard
+
+
+## how to get stats for past weeks
+# headers = {
+#     'Content-Type': 'application/json',
+#     #'X-SecretKey': api_key,
+#     'X-Authorization': session_ticket
+# }
+# payload = {
+#     # 'PlayFabId': stooobe_playfabid,
+#     # 'MaxResultsCount': 10,
+#     'StatisticName' : "WeeklyKillsTotal",
+#   }
+# response = run_request('GetPlayerStatisticVersions', payload, headers)
+# print(response)

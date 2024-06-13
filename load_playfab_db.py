@@ -23,7 +23,7 @@ def main():
         default="CareerWins",
         type=str,
         required=False,
-        help="CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal",
+        help="CareerWins, CareerKills, CareerDamage, WeeklyWinsTotal, WeeklyKillsTotal"
     )
     parser.add_argument(
         "--min", default=0, type=int, required=False, help="Stop running after statname value gets below min"

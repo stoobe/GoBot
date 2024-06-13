@@ -62,6 +62,7 @@ class GoRatings(SQLModel, table=True):
     go_rating: float
 
 
+# Manages when games are played
 class GoSchedule(SQLModel, table=True):
     __tablename__ = "go_schedule"  # type: ignore
 
@@ -69,6 +70,8 @@ class GoSchedule(SQLModel, table=True):
     session_date: date = Field(unique=True)
 
 
+# Manages individual lobbies
+# One GoSchedule can have multiple GoLobbies
 class GoLobby(SQLModel, table=True):
     __tablename__ = "go_lobby"  # type: ignore
 
