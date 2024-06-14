@@ -197,6 +197,14 @@ class GoDB:
         return signups
 
     #
+    def get_signup_for_session(self, discord_id: int, session_id: int, session: Session) -> Optional[GoSignup]:
+        tpsignups = self.read_player_signups(session=session, discord_id=discord_id, session_id=session_id)
+        if len(tpsignups) == 0:
+            return None
+        assert len(tpsignups) == 1
+        return tpsignups[0].signup
+
+    #
     def read_team(self, team_id: int, session: Session) -> Optional[GoTeam]:
         logger.info(f"Reading GoTeam with {team_id = } from DB")
         statement = select(GoTeam).where(GoTeam.id == team_id)
@@ -261,9 +269,13 @@ class GoDB:
         return teams
 
     #
-    def get_session_time(self, session_id: int, session: Session) -> Optional[datetime]:
+    def get_session(self, session_id: int, session: Session) -> Optional[GoSession]:
         statement = select(GoSession).where(GoSession.id == session_id)
-        gosession = session.exec(statement).first()
+        return session.exec(statement).first()
+
+    #
+    def get_session_time(self, session_id: int, session: Session) -> Optional[datetime]:
+        gosession = self.get_session(session_id, session)
         if gosession is None:
             return None
         return gosession.session_time

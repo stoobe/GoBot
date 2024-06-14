@@ -19,6 +19,15 @@ class GoPlayer(SQLModel, table=True):
     pf_player: Optional["PfPlayer"] = Relationship(back_populates="go_player")
 
 
+class GoRatings(SQLModel, table=True):
+    __tablename__ = "go_ratings"  # type: ignore
+
+    pf_player_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), primary_key=True))
+    season: str = Field(primary_key=True)
+    rating_type: str = Field(primary_key=True)
+    go_rating: float
+
+
 class GoTeam(SQLModel, table=True):
     __tablename__ = "go_team"  # type: ignore
 
@@ -52,15 +61,6 @@ class GoSignup(SQLModel, table=True):
     team: GoTeam = Relationship(back_populates="signups")
     lobby: "GoLobby" = Relationship(back_populates="signups")
     session: "GoSession" = Relationship(back_populates="signups")
-
-
-class GoRatings(SQLModel, table=True):
-    __tablename__ = "go_ratings"  # type: ignore
-
-    pf_player_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("pf_player.id"), primary_key=True))
-    season: str = Field(primary_key=True)
-    rating_type: str = Field(primary_key=True)
-    go_rating: float
 
 
 # Manages when games are played
