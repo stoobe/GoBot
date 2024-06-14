@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from datetime import date as datetype
 from datetime import datetime
 from typing import List, Optional, Union
 
@@ -24,6 +23,10 @@ from go.bot.playfab_db import PlayfabDB
 MY_GUILD = discord.Object(id=_config.guild_id)
 
 logger = create_logger(__name__)
+
+
+def time_str(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%d at %I:%M %p")
 
 
 def get_name(member: Union[discord.Member, discord.User, None]) -> str:
@@ -75,12 +78,12 @@ class GoCog(commands.Cog):
         self.pfdb: PlayfabDB = bot.pfdb  # type: ignore
 
     #
-    def get_channel_date(self, interaction: discord.Interaction, session: Session) -> datetype:
+    def get_channel_time(self, interaction: discord.Interaction, session: Session) -> datetime:
         if interaction.channel_id is None:
             logger.warn(f"interaction.channel_id is None")
             raise DiscordUserError("Error with discord -- interaction.channel_id is None.", code=ErrorCode.MISC_ERROR)
 
-        date = self.godb.get_session_date(session_id=interaction.channel_id, session=session)
+        date = self.godb.get_session_time(session_id=interaction.channel_id, session=session)
         if date is None:
             raise DiscordUserError("Signups not enabled on this channel.")
         return date
@@ -222,7 +225,7 @@ class GoCog(commands.Cog):
 
                 msg += f"- Playfab ID: {as_playfab_id(go_p.pf_player_id)}\n"
 
-                signups = []
+                signups: List[GoSignup] = []
                 teams = [r.team for r in go_p.rosters]
                 msg += f"- Teams:\n"
                 for team in teams:
@@ -235,7 +238,7 @@ class GoCog(commands.Cog):
 
                 msg += f"- Sessions:\n"
                 for signup in signups:
-                    msg += f"  - {signup.session_date} -- {escmd(signup.team.team_name)}\n"
+                    msg += f"  - {time_str(signup.session.session_time)} -- {escmd(signup.team.team_name)}\n"
 
             return msg
 
@@ -262,10 +265,10 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message, ephemeral=True)
 
     #
-    def do_rename_team(self, new_team_name: str, player: DiscordUser, date: datetype, session: Session) -> GoTeam:
-        tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
+    def do_rename_team(self, new_team_name: str, player: DiscordUser, session_id: int, session: Session) -> GoTeam:
+        tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, session_id=session_id)
         if len(tpsignups) == 0:
-            msg = f"Player {player.name} is not signed up on {date}."
+            msg = f"Player {player.name} is not signed up on in this session."
             raise DiscordUserError(msg)
 
         assert len(tpsignups) == 1
@@ -298,12 +301,13 @@ class GoCog(commands.Cog):
         try:
             with Session(self.engine) as session:
 
-                date = self.get_channel_date(interaction, session)
+                date = self.get_channel_time(interaction, session)
+                assert interaction.channel_id is not None
 
                 p = convert_user(player)  # type: ignore
                 logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel.name})")  # type: ignore
 
-                team = self.do_rename_team(new_team_name, p, date, session)
+                team = self.do_rename_team(new_team_name, p, session_id=interaction.channel_id, session=session)
                 msg = f"Team name changed to {team.team_name}"
                 logger.info(msg)
                 await interaction.response.send_message(msg)
@@ -316,7 +320,7 @@ class GoCog(commands.Cog):
         self,
         players: List[Optional[DiscordUser]],
         team_name: str,
-        date: datetype,
+        session_id: int,
         session: Session,
         signup_time: Optional[datetime] = None,
     ) -> GoSignup:
@@ -402,14 +406,14 @@ class GoCog(commands.Cog):
         # if it's an existing team
         if go_team_by_roster:
             # already signed up for today?
-            signup_dates = [_.session_date for _ in go_team_by_roster.signups]
-            if date in signup_dates:
-                msg = f'Team "{team_name}" is already signed up for {date}.'
+            session_ids = [_.session_id for _ in go_team_by_roster.signups]
+            if session_id in session_ids:
+                msg = f'Team "{team_name}" is already signed up for this session.'
                 raise DiscordUserError(msg)
 
             # signed up for too many dates?
-            if len(signup_dates) >= 4:
-                msg = f'Team "{team_name}" is already signed up for {len(signup_dates)} dates (max is 4).'
+            if len(session_ids) >= 4:
+                msg = f'Team "{team_name}" is already signed up for {len(session_ids)} dates (max is 4).'
                 raise DiscordUserError(msg)
 
         rating_limit = _config.go_rating_limits.get(len(go_players), None)
@@ -429,7 +433,9 @@ class GoCog(commands.Cog):
                 msg = f"Could not create team in DB"
                 raise DiscordUserError(msg, code=ErrorCode.DB_FAIL)
 
-            signup = self.godb.add_signup(team=go_team_by_roster, date=date, session=session, signup_time=signup_time)
+            signup = self.godb.add_signup(
+                team=go_team_by_roster, session_id=session_id, session=session, signup_time=signup_time
+            )
 
         except GoDbError as err:
             # godb.add_signup checks that the players aren't on a different team that day
@@ -461,7 +467,8 @@ class GoCog(commands.Cog):
 
             with Session(self.engine) as session:
 
-                date = self.get_channel_date(interaction, session)
+                date = self.get_channel_time(interaction, session)
+                assert interaction.channel_id is not None
 
                 players: List[Optional[DiscordUser]] = [convert_user(player1)]
                 players.append(convert_user(player2) if player2 else None)
@@ -470,13 +477,16 @@ class GoCog(commands.Cog):
                 if team_name:
                     team_name = team_name.strip()
 
-                signup = self.do_signup(players=players, team_name=team_name, date=date, session=session)
+                signup = self.do_signup(
+                    players=players, team_name=team_name, session_id=interaction.channel_id, session=session
+                )
                 session.commit()
                 session.refresh(signup.team)
                 team = signup.team
 
                 igns = [r.player.pf_player.ign for r in team.rosters]
-                msg = f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+                msg = f'Signed up "{team.team_name}" for session on {time_str(date)}'
+                msg += f'\nPlayers: {", ".join(igns)}.'
                 msg += f"\nTeam GO Rating is {team.team_rating:,.0f}."
                 msg += f"\nThis is signup #{len(team.signups)} for the team."
                 logger.info(msg)
@@ -492,13 +502,13 @@ class GoCog(commands.Cog):
         player,
         players: List[Optional[DiscordUser]],
         new_team_name: str | None,
-        date: datetype,
+        session_id: int,
         session: Session,
     ) -> str:
 
         # do_cancel will return the signup.team that the player is
         # signed up for on date.  If not signed up it will throw an error.
-        signup = self.do_cancel(player=player, date=date, session=session)
+        signup = self.do_cancel(player=player, session_id=session_id, session=session)
         original_time = signup.signup_time
         old_team_name = signup.team.team_name
 
@@ -511,7 +521,7 @@ class GoCog(commands.Cog):
             new_team_name = f"team {random.randint(1000, 9999)}"
 
         signup = self.do_signup(
-            players=players, team_name=new_team_name, date=date, session=session, signup_time=original_time
+            players=players, team_name=new_team_name, session_id=session_id, session=session, signup_time=original_time
         )
 
         team = signup.team
@@ -520,9 +530,9 @@ class GoCog(commands.Cog):
 
         igns = [r.player.pf_player.ign for r in team.rosters]
 
-        msg = f'Cancelled "{old_team_name}" for session on {date}.'
+        msg = f'Cancelled "{old_team_name}" for this session.'
         msg += "\n"
-        msg += f'Signed up "{team.team_name}" on {date} with players: {", ".join(igns)}.'
+        msg += f'Signed up "{team.team_name}" with players: {", ".join(igns)}.'
         msg += f"\nTeam GO Rating is {team.team_rating:,.0f}."
         msg += f"\nThis is signup #{len(team.signups)} for the team."
         return msg
@@ -550,7 +560,8 @@ class GoCog(commands.Cog):
             try:
                 session.begin()
 
-                date = self.get_channel_date(interaction, session)
+                date = self.get_channel_time(interaction, session)
+                assert interaction.channel_id is not None
 
                 # player may or may not be on the new team
                 # but player (the user running the command) must
@@ -561,7 +572,7 @@ class GoCog(commands.Cog):
                 players.append(convert_user(new_player2) if new_player2 else None)
                 players.append(convert_user(new_player3) if new_player3 else None)
 
-                msg = self.do_change_signup(player, players, new_team_name, date, session)
+                msg = self.do_change_signup(player, players, new_team_name, interaction.channel_id, session)
                 session.commit()
 
                 logger.info(msg)
@@ -575,14 +586,14 @@ class GoCog(commands.Cog):
     #
     # Does NOT commit or refresh
     #
-    def do_cancel(self, player: DiscordUser, date: datetype, session: Session) -> GoSignup:
-        tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, date=date)
+    def do_cancel(self, player: DiscordUser, session_id: int, session: Session) -> GoSignup:
+        tpsignups = self.godb.read_player_signups(session=session, discord_id=player.id, session_id=session_id)
         if len(tpsignups) == 0:
-            msg = f"Player {player.name} is not signed up on {date}."
+            msg = f"Player {player.name} is not signed up for this session."
             raise DiscordUserError(msg)
 
         if len(tpsignups) > 1:
-            msg = f"Somehow player {player.name} has signed up more than once on {date}. Ask @GO_STOOOBE to help fix this."
+            msg = f"Somehow player {player.name} has signed up more than once in this session. Ask @GO_STOOOBE to help fix this."
             logger.error(msg)
             raise DiscordUserError(msg)
 
@@ -608,9 +619,10 @@ class GoCog(commands.Cog):
 
         try:
             with Session(self.engine) as session:
-                date = self.get_channel_date(interaction, session)
+                date = self.get_channel_time(interaction, session)
+                assert interaction.channel_id is not None
 
-                signup = self.do_cancel(player=player, date=date, session=session)
+                signup = self.do_cancel(player=player, session_id=interaction.channel_id, session=session)
 
                 team_id = signup.team.id
                 team_name = signup.team.team_name
@@ -621,7 +633,7 @@ class GoCog(commands.Cog):
                 if team:
                     signups_remaining = len(team.signups)
 
-                msg = f'Cancelled "{team_name}" for session on {date}.'
+                msg = f'Cancelled "{team_name}" for session on {time_str(date)}.'
                 msg += f"\nThere are {signups_remaining} signups still active for the team."
                 logger.info(msg)
                 await interaction.response.send_message(msg)
@@ -640,7 +652,7 @@ class GoCog(commands.Cog):
     async def sub(self, interaction: discord.Interaction):
         msg = "GO League doesn't have subs\n"
         msg += "- Every new combo of players is a new team.\n"
-        msg += "- Use `/go change_signup` to signup a different team for this session while keeping your orignial signup time."
+        msg += "- Use `/go change_signup` to signup a different team for a session while keeping your orignial signup time."
         logger.info(msg)
         await interaction.response.send_message(msg)
 
@@ -655,12 +667,13 @@ class GoCog(commands.Cog):
 
             with Session(self.engine) as session:
                 msg = ""
-                date = self.get_channel_date(interaction, session)
+                date = self.get_channel_time(interaction, session)
+                assert interaction.channel_id is not None
 
                 if date is None:
                     msg = "This channel has no games to signup for."
                 else:
-                    teams = self.godb.get_teams_for_date(session_date=date, session=session)
+                    teams = self.godb.get_teams_for_session(session_id=interaction.channel_id, session=session)
                     msg = ""
                     player_count = 0
                     for i, team in enumerate(teams):
@@ -681,7 +694,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"%(funcName)s resulted in error code {err.code}: {err.message}")
+            logger.warn(f"list_teams resulted in error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -734,7 +747,7 @@ class GoCog(commands.Cog):
     @admin_group.command(name="cancel", description="Admin tool to cancel a signup")
     async def admin_cancel(self, interaction: discord.Interaction, player: discord.Member):
         if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
+            logger.warn(f"User {get_name(interaction.user)} tried to run admin_cancel")
             await interaction.response.send_message("You dont have permission to use this command.")
             return
 
@@ -742,17 +755,17 @@ class GoCog(commands.Cog):
         await self.handle_cancel("admin_cancel", interaction, converted_player)
 
     #
-    @admin_group.command(description="Set the session date for this channel")
-    async def set_session_date(self, interaction: discord.Interaction, date: str):
+    @admin_group.command(description="Set the session date & time for this channel")
+    async def set_session_time(self, interaction: discord.Interaction, date_time: str):
         if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_date")
+            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_time")
             await interaction.response.send_message("You dont have permission to use this command.")
             return
 
-        logger.info(f"Running go_admin.set_session_date({date})")
+        logger.info(f"Running go_admin.set_session_time({date_time})")
 
         try:
-            date2 = parser.parse(date).date()
+            date2 = parser.parse(date_time)
 
             if interaction.channel is None or interaction.channel_id is None:
                 msg = "Error with discord -- cannot get channel info."
@@ -760,25 +773,25 @@ class GoCog(commands.Cog):
 
             with Session(self.engine) as session:
                 session_id = interaction.channel_id
-                self.godb.set_session_date(session_id=session_id, session_date=date2, session=session)
-                msg = f'Session date for "{interaction.channel.name}" set to {date2}'  # type: ignore
+                self.godb.set_session_time(session_id=session_id, session_time=date2, session=session)
+                msg = f'Session date for "{interaction.channel.name}" set to {time_str(date2)}'  # type: ignore
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
         except parser.ParserError as err:
-            msg = f"Error: Could not parse date string '{date}'"
+            msg = f"Error: Could not parse date string '{date_time}'"
             logger.warn(msg)
             await interaction.response.send_message(msg)
 
     #
     @admin_group.command(description="Get the session date for this channel")
-    async def get_session_date(self, interaction: discord.Interaction):
+    async def get_session_time(self, interaction: discord.Interaction):
         if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run get_session_date")
+            logger.warn(f"User {get_name(interaction.user)} tried to run get_session_time")
             await interaction.response.send_message("You dont have permission to use this command!")
             return
 
-        logger.info(f"Running go_admin.get_session_date")
+        logger.info(f"Running go_admin.get_session_time")
 
         if interaction.channel is None or interaction.channel_id is None:
             msg = "Error with discord -- cannot get channel info."
@@ -786,8 +799,8 @@ class GoCog(commands.Cog):
 
         with Session(self.engine) as session:
             session_id = interaction.channel_id
-            date = self.godb.get_session_date(session_id=session_id, session=session)
-            msg = f'Session date for "{interaction.channel.name}" is {date}'  # type: ignore
+            date = self.godb.get_session_time(session_id=session_id, session=session)
+            msg = f'Session date for "{interaction.channel.name}" is {time_str(date)}'  # type: ignore
             logger.info(msg)
             await interaction.response.send_message(msg)
 

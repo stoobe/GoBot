@@ -9,7 +9,7 @@ from sqlmodel import Session, delete, func, select
 
 from go.bot.exceptions import GoDbError
 from go.bot.logger import create_logger
-from go.bot.models import GoPlayer, GoRatings, GoRoster, GoSchedule, GoSignup, GoTeam
+from go.bot.models import GoPlayer, GoRatings, GoRoster, GoSession, GoSignup, GoTeam
 
 logger = create_logger(__name__)
 
@@ -135,27 +135,27 @@ class GoDB:
 
     #
     def add_signup(
-        self, team: GoTeam, date: datetype, session: Session, signup_time: Optional[datetime] = None
+        self, team: GoTeam, session_id: int, session: Session, signup_time: Optional[datetime] = None
     ) -> GoSignup:
         logger.info("Adding new signup to DB")
 
         if team.id is None:
             raise GoDbError("Cannot add signup: team has no id")
 
-        current_signups = self.read_player_signups(date=date, session=session)
+        current_signups = self.read_player_signups(session_id=session_id, session=session)
         discord_ids = {r.discord_id for r in team.rosters}
 
         for tp in current_signups:
             if tp.player.discord_id in discord_ids:
                 # player = self.read_player(discord_id=tp.player.discord_id, session=session)
                 raise GoDbError(
-                    f'Player {tp.player.discord_name} is already signed up for {date} for team "{tp.team.team_name}".'
+                    f'Player {tp.player.discord_name} is already signed up in this session for team "{tp.team.team_name}".'
                 )
 
         if signup_time is None:
             signup_time = datetime.now()
 
-        signup = GoSignup(team_id=team.id, session_date=date, signup_time=signup_time)
+        signup = GoSignup(team_id=team.id, session_id=session_id, signup_time=signup_time)
         session.add(signup)
         session.commit()
         return signup
@@ -164,13 +164,13 @@ class GoDB:
     def read_player_signups(
         self,
         session: Session,
-        date: Optional[datetype] = None,
+        session_id: Optional[int] = None,
         team_id: Optional[int] = None,
         discord_id: Optional[int] = None,
     ) -> List[GoTeamPlayerSignup]:
         """returns empty list if none found for that date"""
 
-        logger.info(f"Reading Signups for {date = } from DB")
+        logger.info(f"Reading Signups for {session_id = } from DB")
         statement = (
             select(GoTeam, GoPlayer, GoRoster, GoSignup)
             .where(GoSignup.team_id == GoRoster.team_id)
@@ -178,8 +178,8 @@ class GoDB:
             .where(GoRoster.discord_id == GoPlayer.discord_id)
         )
 
-        if date is not None:
-            statement = statement.where(GoSignup.session_date == date)
+        if session_id is not None:
+            statement = statement.where(GoSignup.session_id == session_id)
 
         if team_id is not None:
             statement = statement.where(GoTeam.id == team_id)
@@ -249,10 +249,10 @@ class GoDB:
         return team
 
     #
-    def get_teams_for_date(self, session_date, session: Session) -> List[GoTeam]:
-        logger.info(f"Reading GoSignups with {session_date = } from DB")
+    def get_teams_for_session(self, session_id, session: Session) -> List[GoTeam]:
+        logger.info(f"Reading GoSignups with {session_id = } from DB")
         statement = (
-            select(GoSignup).where(GoSignup.session_date == session_date).order_by(GoSignup.signup_time)  # type: ignore
+            select(GoSignup).where(GoSignup.session_id == session_id).order_by(GoSignup.signup_time)  # type: ignore
         )
         results = session.exec(statement)
         teams = []
@@ -261,32 +261,32 @@ class GoDB:
         return teams
 
     #
-    def get_session_date(self, session_id, session: Session) -> Optional[datetype]:
-        statement = select(GoSchedule).where(GoSchedule.session_id == session_id)
-        gosched = session.exec(statement).first()
-        if gosched is None:
+    def get_session_time(self, session_id: int, session: Session) -> Optional[datetime]:
+        statement = select(GoSession).where(GoSession.id == session_id)
+        gosession = session.exec(statement).first()
+        if gosession is None:
             return None
-        return gosched.session_date
+        return gosession.session_time
 
     #
-    def set_session_date(self, session_id, session_date, session: Session):
+    def set_session_time(self, session_id: int, session_time: datetime, session: Session):
         if session_id is None:
             raise ValueError("session_id cannot be None")
-        if session_date is None:
-            raise ValueError("session_date cannot be None")
+        if session_time is None:
+            raise ValueError("session_time cannot be None")
 
-        statement = select(GoSchedule).where(GoSchedule.session_id == session_id)
-        gosched = session.exec(statement).first()
+        statement = select(GoSession).where(GoSession.id == session_id)
+        gosession = session.exec(statement).first()
 
-        if gosched is not None:
-            if gosched.session_date == session_date:
+        if gosession is not None:
+            if gosession.session_time == session_time:
                 return
             else:
-                gosched.session_date = session_date
+                gosession.session_time = session_time
         else:
-            gosched = GoSchedule(session_id=session_id, session_date=session_date)
+            gosession = GoSession(id=session_id, session_time=session_time, signup_state="open")
 
-        session.add(gosched)
+        session.add(gosession)
         session.commit()
 
     #

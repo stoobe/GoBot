@@ -45,12 +45,13 @@ class GoSignup(SQLModel, table=True):
     __tablename__ = "go_signup"  # type: ignore
 
     team_id: int = Field(primary_key=True, foreign_key="go_team.id")
-    session_date: date = Field(primary_key=True)
+    session_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_session.id"), primary_key=True))
     lobby_id: Optional[int] = Field(default=None, foreign_key="go_lobby.id")
     signup_time: datetime = Field(default_factory=lambda: datetime.now())
 
     team: GoTeam = Relationship(back_populates="signups")
     lobby: "GoLobby" = Relationship(back_populates="signups")
+    session: "GoSession" = Relationship(back_populates="signups")
 
 
 class GoRatings(SQLModel, table=True):
@@ -63,25 +64,40 @@ class GoRatings(SQLModel, table=True):
 
 
 # Manages when games are played
-class GoSchedule(SQLModel, table=True):
-    __tablename__ = "go_schedule"  # type: ignore
+class GoSession(SQLModel, table=True):
+    __tablename__ = "go_session"  # type: ignore
 
-    session_id: int = Field(sa_column=Column(BigInteger(), primary_key=True))
-    session_date: date = Field(unique=True)
+    id: int = Field(sa_column=Column(BigInteger(), primary_key=True))
+    session_time: datetime = Field(unique=True)
+    signup_state: str  # "open" or "change_only" or "closed"
+    season: Optional[str] = Field(default=None)
+
+    signups: List["GoSignup"] = Relationship(back_populates="session", sa_relationship_kwargs={"cascade": "delete"})
+    lobbies: List["GoLobby"] = Relationship(back_populates="session", sa_relationship_kwargs={"cascade": "delete"})
 
 
 # Manages individual lobbies
-# One GoSchedule can have multiple GoLobbies
+# One GoSession can have multiple GoLobbies
 class GoLobby(SQLModel, table=True):
     __tablename__ = "go_lobby"  # type: ignore
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    session_date: date = Field(unique=True)
+    session_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_session.id")))
     host_did: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), default=None))
     lobby_code: Optional[str] = Field(default=None)
 
     signups: List["GoSignup"] = Relationship(back_populates="lobby")
     host: GoPlayer = Relationship()
+    session: "GoSession" = Relationship(back_populates="lobbies")
+
+
+class GoHost(SQLModel, table=True):
+    __tablename__ = "go_host"  # type: ignore
+
+    host_did: int = Field(sa_column=Column(BigInteger(), primary_key=True))
+    session_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_session.id"), primary_key=True))
+    lobby_id: Optional[int] = Field(default=None, foreign_key="go_lobby.id")
+    status: str
 
 
 class PfPlayer(SQLModel, table=True):

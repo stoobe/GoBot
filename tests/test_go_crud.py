@@ -1,4 +1,3 @@
-from datetime import date as datetype
 from datetime import datetime
 from time import sleep
 from typing import List
@@ -11,15 +10,19 @@ from go.bot.exceptions import GoDbError, PlayerNotFoundError
 from go.bot.go_db import GoTeamPlayerSignup
 from go.bot.models import GoPlayer, GoRatings, GoTeam
 
-date1 = datetype(2023, 1, 1)
-date2 = datetype(2023, 1, 2)
-date3 = datetype(2023, 1, 3)
-date4 = datetype(2023, 1, 4)
-date5 = datetype(2023, 1, 5)
-date6 = datetype(2023, 1, 6)
+date1 = datetime(2023, 1, 1)
+date2 = datetime(2023, 1, 2)
+date3 = datetime(2023, 1, 3)
+date4 = datetime(2023, 1, 4)
+date5 = datetime(2023, 1, 5)
+date6 = datetime(2023, 1, 6)
 
-channel_id1 = 1111
-channel_id2 = 2222
+channel1 = 1111
+channel2 = 2222
+channel3 = 3333
+channel4 = 4444
+channel5 = 5555
+channel6 = 6666
 
 seas = _config.go_season
 
@@ -199,24 +202,24 @@ def test_create_and_read_player_signups(gocog_preload, godb, session, go_p1, go_
     team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
     assert 0 == godb.signup_count(session=session)
-    godb.add_signup(team=team1, date=date1, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
     assert 1 == godb.signup_count(session=session)
-    godb.add_signup(team=team2, date=date2, session=session)
+    godb.add_signup(team=team2, session_id=channel2, session=session)
     assert 2 == godb.signup_count(session=session)
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(date=date1, session=session)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session_id=channel1, session=session)
     assert 2 == len(signups)
     assert team1.id == signups[0].team.id
     assert team1.id == signups[1].team.id
     assert go_p1.discord_id == signups[0].player.discord_id
     assert go_p2.discord_id == signups[1].player.discord_id
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(date=date2, session=session)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session_id=channel2, session=session)
     assert 1 == len(signups)
     assert team2.id == signups[0].team.id
     assert go_p1.discord_id == signups[0].player.discord_id
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(date=date3, session=session)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session_id=channel3, session=session)
     assert 0 == len(signups)
 
 
@@ -227,26 +230,28 @@ def test_read_player_signups_with_filters(gocog_preload, godb, session, go_p1, g
     team23 = godb.create_team("tn23", [go_p2, go_p3], session, None, seas)
     team3 = godb.create_team("tn3", [go_p3], session, None, seas)
 
-    godb.add_signup(team=team1, date=date1, session=session)
-    godb.add_signup(team=team23, date=date1, session=session)
-    godb.add_signup(team=team12, date=date2, session=session)
-    godb.add_signup(team=team123, date=date3, session=session)
-    godb.add_signup(team=team1, date=date4, session=session)
-    godb.add_signup(team=team3, date=date4, session=session)
-    godb.add_signup(team=team23, date=date5, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
+    godb.add_signup(team=team23, session_id=channel1, session=session)
+    godb.add_signup(team=team12, session_id=channel2, session=session)
+    godb.add_signup(team=team123, session_id=channel3, session=session)
+    godb.add_signup(team=team1, session_id=channel4, session=session)
+    godb.add_signup(team=team3, session_id=channel4, session=session)
+    godb.add_signup(team=team23, session_id=channel5, session=session)
 
     assert godb.signup_count(session=session) == 7
 
     signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session)
     assert len(signups) == 12
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, date=date1)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, session_id=channel1)
     assert len(signups) == 3
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, date=date1, team_id=team23.id)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(
+        session=session, session_id=channel1, team_id=team23.id
+    )
     assert len(signups) == 2
 
-    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, date=date6)
+    signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, session_id=channel6)
     assert len(signups) == 0
 
     signups: List[GoTeamPlayerSignup] = godb.read_player_signups(session=session, team_id=team23.id)
@@ -259,7 +264,7 @@ def test_read_player_signups_with_filters(gocog_preload, godb, session, go_p1, g
     assert len(signups) == 0
 
     signups: List[GoTeamPlayerSignup] = godb.read_player_signups(
-        session=session, date=date1, discord_id=go_p1.discord_id
+        session=session, session_id=channel1, discord_id=go_p1.discord_id
     )
     assert len(signups) == 1
 
@@ -268,8 +273,8 @@ def test_signups_cascading_delete(gocog_preload, godb, session, go_p1, go_p2):
     team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
     team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
-    godb.add_signup(team=team1, date=date1, session=session)
-    godb.add_signup(team=team2, date=date2, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
+    godb.add_signup(team=team2, session_id=channel2, session=session)
 
     assert 2 == godb.signup_count(session=session)
     session.delete(team1)
@@ -283,50 +288,50 @@ def test_signups_cascading_delete(gocog_preload, godb, session, go_p1, go_p2):
 def test_signups_same_day_twice(gocog_preload, godb, session, go_p1, go_p2):
     team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
 
-    godb.add_signup(team=team1, date=date1, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
 
     with pytest.raises(GoDbError):
         # try adding the same signup twice
-        godb.add_signup(team=team1, date=date1, session=session)
+        godb.add_signup(team=team1, session_id=channel1, session=session)
 
 
 def test_signups_with_missing_team_id(gocog_preload, godb, session):
     team1 = GoTeam(team_name="tn1", team_size=2)
     with pytest.raises(GoDbError):
-        godb.add_signup(team=team1, date=date1, session=session)
+        godb.add_signup(team=team1, session_id=channel1, session=session)
 
 
 def test_signups_player_same_day_twice(gocog_preload, godb, session, go_p1, go_p2):
     team1 = godb.create_team("tn1", [go_p1, go_p2], session, None, seas)
     team2 = godb.create_team("tn2", [go_p1], session, None, seas)
 
-    godb.add_signup(team=team1, date=date1, session=session)
-    godb.add_signup(team=team2, date=date2, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
+    godb.add_signup(team=team2, session_id=channel2, session=session)
 
     with pytest.raises(GoDbError):
         # try signing up a player for the same day on a different team
         # p1 is on both team1 and team2, so cannot signup for date1 again
-        godb.add_signup(team=team2, date=date1, session=session)
+        godb.add_signup(team=team2, session_id=channel1, session=session)
 
 
-def test_set_session_date(godb, session):
+def test_set_session_time(godb, session):
 
-    godb.set_session_date(session_id=channel_id1, session_date=date1, session=session)
-    assert godb.get_session_date(channel_id1, session=session) == date1
-    assert godb.get_session_date(channel_id2, session=session) == None
+    godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+    assert godb.get_session_time(channel1, session=session) == date1
+    assert godb.get_session_time(channel2, session=session) == None
 
-    godb.set_session_date(session_id=channel_id1, session_date=date1, session=session)
-    assert godb.get_session_date(channel_id1, session=session) == date1
-    assert godb.get_session_date(channel_id2, session=session) == None
+    godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+    assert godb.get_session_time(channel1, session=session) == date1
+    assert godb.get_session_time(channel2, session=session) == None
 
-    godb.set_session_date(session_id=channel_id1, session_date=date2, session=session)
-    assert godb.get_session_date(channel_id1, session=session) == date2
-
-    with pytest.raises(ValueError):
-        godb.set_session_date(session_id=None, session_date=date2, session=session)
+    godb.set_session_time(session_id=channel1, session_time=date2, session=session)
+    assert godb.get_session_time(channel1, session=session) == date2
 
     with pytest.raises(ValueError):
-        godb.set_session_date(session_id=channel_id1, session_date=None, session=session)
+        godb.set_session_time(session_id=None, session_time=date2, session=session)
+
+    with pytest.raises(ValueError):
+        godb.set_session_time(session_id=channel1, session_time=None, session=session)
 
 
 def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
@@ -347,7 +352,7 @@ def test_get_official_rating(godb, pfdb, session, pf_p1, go_p1):
     assert go_rating == 1234.5
 
 
-def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
+def test_get_teams_for_session(gocog_preload, godb, session, go_p1, go_p2, go_p3):
     team1 = godb.create_team("tn1", [go_p1], session, None, seas)
     team1.team_rating = 1234.56
     session.add(team1)
@@ -358,24 +363,24 @@ def test_get_teams_for_date(gocog_preload, godb, session, go_p1, go_p2, go_p3):
     team23 = godb.create_team("tn23", [go_p2, go_p3], session, None, seas)
     team3 = godb.create_team("tn3", [go_p3], session, None, seas)
 
-    godb.add_signup(team=team1, date=date1, session=session)
-    godb.add_signup(team=team23, date=date1, session=session)
-    godb.add_signup(team=team12, date=date2, session=session)
-    godb.add_signup(team=team123, date=date3, session=session)
-    godb.add_signup(team=team1, date=date4, session=session)
-    godb.add_signup(team=team3, date=date4, session=session)
-    godb.add_signup(team=team2, date=date4, session=session)
+    godb.add_signup(team=team1, session_id=channel1, session=session)
+    godb.add_signup(team=team23, session_id=channel1, session=session)
+    godb.add_signup(team=team12, session_id=channel2, session=session)
+    godb.add_signup(team=team123, session_id=channel3, session=session)
+    godb.add_signup(team=team1, session_id=channel4, session=session)
+    godb.add_signup(team=team3, session_id=channel4, session=session)
+    godb.add_signup(team=team2, session_id=channel4, session=session)
 
-    teams1 = godb.get_teams_for_date(session_date=date1, session=session)
+    teams1 = godb.get_teams_for_session(session_id=channel1, session=session)
     assert len(teams1) == 2
     assert teams1[0].id == team1.id
     assert teams1[1].id == team23.id
 
-    teams4 = godb.get_teams_for_date(session_date=date4, session=session)
+    teams4 = godb.get_teams_for_session(session_id=channel4, session=session)
     assert len(teams4) == 3
     assert teams4[0].id == team1.id
     assert teams4[1].id == team3.id
     assert teams4[2].id == team2.id
 
-    teams5 = godb.get_teams_for_date(session_date=date5, session=session)
+    teams5 = godb.get_teams_for_session(session_id=channel5, session=session)
     assert len(teams5) == 0
