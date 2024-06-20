@@ -39,6 +39,9 @@ class GoTeam(SQLModel, table=True):
     rosters: List["GoRoster"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"})
     signups: List["GoSignup"] = Relationship(back_populates="team", sa_relationship_kwargs={"cascade": "delete"})
 
+    def get_discord_ids(self):
+        return {r.discord_id for r in self.rosters}
+
 
 class GoRoster(SQLModel, table=True):
     __tablename__ = "go_roster"  # type: ignore
@@ -83,7 +86,7 @@ class GoLobby(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     session_id: int = Field(sa_column=Column(BigInteger(), ForeignKey("go_session.id")))
-    host_did: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id"), default=None))
+    host_did: Optional[int] = Field(sa_column=Column(BigInteger(), ForeignKey("go_player.discord_id")), default=None)
     lobby_code: Optional[str] = Field(default=None)
 
     signups: List["GoSignup"] = Relationship(back_populates="lobby")

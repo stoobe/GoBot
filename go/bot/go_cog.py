@@ -1,22 +1,32 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict, deque
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import discord
 from dateutil import parser
 from discord import app_commands
 from discord.ext import commands
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 import _config
 from go.bot.exceptions import DiscordUserError, ErrorCode, GoDbError
 from go.bot.go_bot import GoBot
 from go.bot.go_db import GoDB, GoTeamPlayerSignup
 from go.bot.logger import create_logger
-from go.bot.models import GoPlayer, GoRatings, GoSession, GoSignup, GoTeam
+from go.bot.models import (
+    GoHost,
+    GoLobby,
+    GoPlayer,
+    GoRatings,
+    GoRoster,
+    GoSession,
+    GoSignup,
+    GoTeam,
+)
 from go.bot.playfab_api import as_player_id, as_playfab_id, is_playfab_str
 from go.bot.playfab_db import PlayfabDB
 
@@ -84,7 +94,6 @@ class GoCog(commands.Cog):
         if interaction.channel_id is None:
             logger.warn(f"interaction.channel_id is None")
             raise DiscordUserError("Error with discord -- interaction.channel_id is None.", code=ErrorCode.MISC_ERROR)
-
         date = self.godb.get_session_time(session_id=interaction.channel_id, session=session)
         if date is None:
             raise DiscordUserError("Signups not enabled on this channel.")
@@ -204,11 +213,11 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"set_ign resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
-    @go_group.command(description="Set your In Game Name")
+    @go_group.command(name="set-ign", description="Set your In Game Name")
     async def set_ign(self, interaction: discord.Interaction, ign: str):
         player = convert_user(interaction.user)
         await self.handle_set_ign("set_ign", interaction, player, ign)
@@ -238,6 +247,7 @@ class GoCog(commands.Cog):
                     for signup in team.signups:
                         signups.append(signup)
 
+                signups.sort(key=lambda su: su.session.session_time)
                 msg += f"- Sessions:\n"
                 for signup in signups:
                     msg += f"  - {time_str(signup.session.session_time)} -- {escmd(signup.team.team_name)}\n"
@@ -245,25 +255,25 @@ class GoCog(commands.Cog):
             return msg
 
     #
-    @go_group.command(description="Get info for a player")
+    @go_group.command(name="player-info", description="Get info for a player")
     async def player_info(
         self,
         interaction: discord.Interaction,
         user: Union[discord.Member, discord.User, None] = None,
     ):
+        self.log_command(interaction)
 
         if user is None:
             user = interaction.user
 
         player = convert_user(user)
-        logger.info(f"Running player_info({player.name})")
 
         try:
             msg = self.do_player_info(player)
             logger.info(msg)
             await interaction.response.send_message(msg, ephemeral=True)
         except DiscordUserError as err:
-            logger.warn(f"player_info resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message, ephemeral=True)
 
     #
@@ -282,13 +292,14 @@ class GoCog(commands.Cog):
         return team
 
     #
-    @go_group.command(description="Rename your team in this session")
+    @go_group.command(name="rename-team", description="Rename your team in this session")
     async def rename_team(
         self,
         interaction: discord.Interaction,
         new_team_name: str,
         player: Optional[discord.Member] = None,
     ):
+        self.log_command(interaction)
 
         if player is not None:
             if interaction.user.id != _config.owner_id:
@@ -302,8 +313,6 @@ class GoCog(commands.Cog):
 
         try:
             with Session(self.engine) as session:
-
-                date = self.get_channel_time(interaction, session)
                 assert interaction.channel_id is not None
 
                 p = convert_user(player)  # type: ignore
@@ -314,7 +323,7 @@ class GoCog(commands.Cog):
                 logger.info(msg)
                 await interaction.response.send_message(msg)
         except DiscordUserError as err:
-            logger.warn(f"rename_team resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -466,21 +475,14 @@ class GoCog(commands.Cog):
         player2: Optional[discord.Member] = None,
         player3: Optional[discord.Member] = None,
     ):
-
-        logger.info("")
-        logger.info(
-            f"GoCog.signup names ({interaction.channel}, {team_name}, {get_name(player1)}, {player2 and get_name(player2)}, {player3 and get_name(player3)})"
-        )
-        logger.info(
-            f"GoCog.signup ids   ({interaction.channel_id}, {team_name}, {player1.id}, {player2 and player2.id}, {player3 and player3.id})"
-        )
+        self.log_command(interaction)
 
         try:
 
             with Session(self.engine) as session:
                 self.dm_queue.clear()
 
-                date = self.get_channel_time(interaction, session)
+                gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id is not None
 
                 gosession = self.godb.get_session(interaction.channel_id, session)
@@ -504,7 +506,7 @@ class GoCog(commands.Cog):
                 team = signup.team
 
                 igns = [r.player.pf_player.ign for r in team.rosters]
-                msg = f'Signed up "{team.team_name}" for {time_str(date)}'
+                msg = f'Signed up "{team.team_name}" for {time_str(gosession.session_time)}'
                 msg += f'\n- Players: {", ".join(igns)}.'
                 msg += f"\n- This is signup #{len(team.signups)} for the team."
                 logger.info(msg)
@@ -513,7 +515,7 @@ class GoCog(commands.Cog):
                 await self.send_dms()
 
         except DiscordUserError as err:
-            logger.warn(f"signup resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -558,7 +560,7 @@ class GoCog(commands.Cog):
         return msg
 
     #
-    @go_group.command(description="Change your signup and keep your spot in line")
+    @go_group.command(name="change-signup", description="Change your signup and keep your spot in line")
     async def change_signup(
         self,
         interaction: discord.Interaction,
@@ -567,25 +569,16 @@ class GoCog(commands.Cog):
         new_player3: Optional[discord.Member] = None,
         new_team_name: Optional[str] = None,
     ):
+        try:
+            self.log_command(interaction)
 
-        logger.info("")
-        logger.info(
-            f"GoCog.change_signup names ({interaction.channel}, {new_team_name}, {get_name(new_player1)}, {new_player2 and get_name(new_player2)}, {new_player3 and get_name(new_player3)})"
-        )
-        logger.info(
-            f"GoCog.change_signup ids   ({interaction.channel_id}, {new_team_name}, {new_player1.id}, {new_player2 and new_player2.id}, {new_player3 and new_player3.id})"
-        )
-
-        with Session(self.engine) as session:
-            try:
+            with Session(self.engine) as session:
                 session.begin()
                 self.dm_queue.clear()
 
-                date = self.get_channel_time(interaction, session)
+                gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id is not None
 
-                gosession = self.godb.get_session(interaction.channel_id, session)
-                assert gosession
                 if gosession.signup_state == "closed":
                     msg = "Signups are closed for this session."
                     raise DiscordUserError(msg)
@@ -605,10 +598,10 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
                 await self.send_dms()
 
-            except DiscordUserError as err:
-                session.rollback()
-                logger.warn(f"signup resulted in error code {err.code}: {err.message}")
-                await interaction.response.send_message(err.message)
+        except DiscordUserError as err:
+            session.rollback()
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     # Does NOT commit or refresh
@@ -651,11 +644,9 @@ class GoCog(commands.Cog):
             with Session(self.engine) as session:
                 self.dm_queue.clear()
 
-                date = self.get_channel_time(interaction, session)
+                gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id is not None
 
-                gosession = self.godb.get_session(interaction.channel_id, session)
-                assert gosession
                 if gosession.signup_state == "closed" and func_name != "admin_cancel":
                     msg = "Signups are closed for this session."
                     raise DiscordUserError(msg)
@@ -671,25 +662,27 @@ class GoCog(commands.Cog):
                 if team:
                     signups_remaining = len(team.signups)
 
-                msg = f'Cancelled "{team_name}" for session on {time_str(date)}.'
+                msg = f'Cancelled "{team_name}" for session on {time_str(gosession.session_time)}.'
                 msg += f"\nThere are {signups_remaining} signups still active for the team."
                 logger.info(msg)
                 await interaction.response.send_message(msg)
                 await self.send_dms()
 
         except DiscordUserError as err:
-            logger.warn(f"{func_name} resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
     @go_group.command(description="Cancel your signup for this session")
     async def cancel(self, interaction: discord.Interaction):
+        self.log_command(interaction)
         player = convert_user(interaction.user)
         await self.handle_cancel("cancel", interaction, player)
 
     #
     @go_group.command(description="GO League doesn't have subs. Use /go change_signup")
     async def sub(self, interaction: discord.Interaction):
+        self.log_command(interaction)
         msg = "GO League doesn't have subs\n"
         msg += "- Every new combo of players is a new team.\n"
         msg += "- Use `/go change_signup` to signup a different team for a session while keeping your orignial signup time."
@@ -697,54 +690,57 @@ class GoCog(commands.Cog):
         await interaction.response.send_message(msg)
 
     #
-    @go_group.command(description="List the teams signed up this session")
+    @go_group.command(name="list-teams", description="List the teams signed up this session")
     async def list_teams(self, interaction: discord.Interaction):
         try:
-
-            logger.info(
-                f"Running list_teams on  channel_id: {interaction.channel_id}  channel.name: {interaction.channel}"  # type: ignore
-            )
+            self.log_command(interaction)
 
             with Session(self.engine) as session:
                 msg = ""
-                date = self.get_channel_time(interaction, session)
+                gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id is not None
 
-                if date is None:
-                    msg = "This channel has no games to signup for."
-                else:
-                    teams = self.godb.get_teams_for_session(session_id=interaction.channel_id, session=session)
-                    msg = ""
-                    player_count = 0
-                    for i, team in enumerate(teams):
-                        session.refresh(team)
-                        players = [r.player for r in team.rosters]
-                        players_str = ""
-                        for p in players:
-                            player_count += 1
-                            session.refresh(p.pf_player)
-                            if players_str:
-                                players_str += ", "
-                            players_str += escmd(p.pf_player.ign)
-                        rating_str = f"{team.team_rating:,.0f}" if team.team_rating else "None"
-                        msg += f"{chr(ord('A')+i)}: **{escmd(team.team_name)}** (*{rating_str}*) -- {players_str}\n"
-                    msg = f"**teams:** {len(teams)}\n**players:** {player_count}\n\n" + msg
+                await interaction.response.defer()
+
+                statement = select(GoHost).where(GoHost.session_id == gosession.id)
+                statement = statement.where(GoHost.status == "confirmed")
+                hosts = session.exec(statement).all()
+
+                teams = self.godb.get_teams_for_session(session_id=interaction.channel_id, session=session)
+                msg = ""
+                player_count = 0
+                for i, team in enumerate(teams):
+                    session.refresh(team)
+                    players = [r.player for r in team.rosters]
+                    players_str = ""
+                    for p in players:
+                        player_count += 1
+                        session.refresh(p.pf_player)
+                        if players_str:
+                            players_str += ", "
+                        players_str += escmd(p.pf_player.ign)
+                    rating_str = f"{team.team_rating:,.0f}" if team.team_rating else "None"
+                    msg += f"{chr(ord('A')+i)}: **{escmd(team.team_name)}** (*{rating_str}*) -- {players_str}\n"
+
+                header = f"**teams:** {len(teams)}"
+                header += f"\n**players:** {player_count}"
+                header += f"\n**hosts:** {', '.join([f'<@{h.host_did}>' for h in hosts])}"
+                header += f"\n\n"
+                msg = header + msg
 
                 logger.info(msg)
-                await interaction.response.send_message(msg)
+                # await interaction.response.send_message(msg)
+                await interaction.followup.send(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"list_teams resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
-    @go_group.command(description="List the schedule.")
+    @go_group.command(name="list-schedule", description="List the schedule.")
     async def list_schedule(self, interaction: discord.Interaction):
         try:
-
-            logger.info(
-                f"Running list_schedule on  channel_id: {interaction.channel_id}  channel.name: {interaction.channel}"  # type: ignore
-            )
+            self.log_command(interaction)
 
             with Session(self.engine) as session:
 
@@ -766,17 +762,14 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"list_schedule resulted in error code {err.code}: {err.message}")
+            logger.warn(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
-    @admin_group.command(description="Syncs bot commands")
+    @admin_group.command(name="sync-commands", description="Syncs bot commands")
     async def sync_commands(self, interaction: discord.Interaction):
-        logger.info(f"Command sync called by user {get_name(interaction.user)}.")
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run sync")
-            await interaction.response.send_message("You dont have permission to use this command!")
-            return
+        self.log_command(interaction)
+        self.check_admin_permissions(interaction)
 
         await interaction.response.send_message("Sync starting.")
         self.bot.tree.copy_global_to(guild=MY_GUILD)
@@ -786,58 +779,332 @@ class GoCog(commands.Cog):
         logger.info("Command tree synced.")
 
     #
-    @admin_group.command(description="Use with caution. Clears all the bot commands so they can be reloaded.")
-    async def wipe_commands(self, interaction: discord.Interaction):
-        logger.info(f"Command clear_commands alled by user {get_name(interaction.user)}.")
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run clear_commands")
-            await interaction.response.send_message("You dont have permission to use this command!")
-            return
-
-        await interaction.response.send_message("clear_commands starting.")
-        await self.bot.tree.sync(guild=MY_GUILD)
-        self.bot.tree.clear_commands(guild=MY_GUILD)
-        self.bot.tree.clear_commands(guild=None)
-        await self.bot.tree.sync()
-
-        await interaction.user.send("clear_commands complete.")
-        logger.info(f"clear_commands complete.")
+    def get_lobby_counts(self, player_count):
+        if player_count == 0:
+            msg = "No players signed up for this session."
+            raise DiscordUserError(msg)
+        elif player_count < 30:
+            lobbies_needed = 1
+            max_players = 24
+        elif player_count <= 48:
+            lobbies_needed = 2
+            max_players = 24 * 2
+        else:
+            lobbies_needed = 3
+            max_players = 24 * 3
+        return lobbies_needed, max_players
 
     #
-    @admin_group.command(name="set_ign", description="Admin tool to set a user's In Game Name")
-    async def admin_set_ign(self, interaction: discord.Interaction, user: discord.Member, ign: str):
+    def snake_draft_inc(self, i: int, counting_up: bool, max_i: int) -> tuple[int, bool]:
+        if counting_up:
+            if i == max_i - 1:
+                counting_up = False
+            else:
+                i += 1
+        else:
+            if i == 0:
+                counting_up = True
+            else:
+                i -= 1
+        return i, counting_up
 
+    #
+    # Accepts teams in signup order (lower index is earlier signup)
+    def do_sort_lobbies(self, hosts: List[GoHost], teams: List[GoTeam]) -> Dict[int, List[GoTeam]]:
+
+        player_count = sum([t.team_size for t in teams])
+        lobby_count, max_players = self.get_lobby_counts(player_count)
+        host_dids = {h.host_did for h in hosts}
+
+        print(f"{player_count = }")
+        print(f"{host_dids = }")
+
+        team_to_host: Dict[int, int] = {}
+        for team in teams:
+            for r in team.rosters:
+                if team.id and r.player.discord_id in host_dids:
+                    team_to_host[team.id] = r.player.discord_id
+
+        # check team_to_host b/c two hosts on the same team only count
+        # as one host
+        if len(team_to_host) < lobby_count:
+            msg = f"Error: Not enough hosts ({len(team_to_host)}) for the number of lobbies needed ({lobby_count})."
+            raise DiscordUserError(msg)
+
+        # filter in/out which teams signed up early enough to play
+        teams_in = []
+        teams_out = []
+        player_count_in = 0
+        for team in teams:
+            if player_count_in + team.team_size > max_players:
+                teams_out.append(team)
+            else:
+                teams_in.append(team)
+                player_count_in += team.team_size
+
+        i = 0
+        counting_up = True  # snake draft direction
+        lobby_to_nplayers = defaultdict(int)
+        lobby_to_teams = defaultdict(list)
+        lobby_to_hosts: Dict[int, int] = {}
+
+        # highest rating at end of queue
+        teams_in_queue = sorted(teams_in, key=lambda t: t.team_rating, reverse=True)
+
+        j = 0
+        n_failed_to_fit = 0
+        while len(teams_in_queue):
+
+            if j == len(teams_in_queue):
+                # if we cant fit any more teams into lobby i
+                # then advance to the next lobby and start at j=0 again
+                j = 0
+                n_failed_to_fit += 1
+                i, counting_up = self.snake_draft_inc(i, counting_up, max_i=lobby_count)
+
+                if n_failed_to_fit >= lobby_count * 2:
+                    # if we've tried out all the lobbies and still cant fit
+                    # then break out of the loop
+                    break
+                continue
+
+            team: GoTeam = teams_in_queue[j]
+            assert team.id is not None
+
+            if lobby_to_nplayers[i] + team.team_size > 24:
+                # if the team wont fit, skip it for now
+                # look at the next team for the same lobby[i]
+                j += 1
+                continue
+
+            # if team has a host on the roster
+            if team.id in team_to_host:
+                # if we already have a host for this lobby
+                if team.id in lobby_to_hosts:
+                    # then look at the next team for this lobby
+                    j += 1
+                    continue
+                else:
+                    lobby_to_hosts[i] = team_to_host[team.id]
+
+            # if the team fits in the lobby
+            # remove it from the queue and reset j to the beginning
+            # of the queue (the highest rated team remainig to sort)
+            teams_in_queue.pop(j)
+            j = 0
+            lobby_to_nplayers[i] += team.team_size
+            lobby_to_teams[i].append(team)
+            i, counting_up = self.snake_draft_inc(i, counting_up, max_i=lobby_count)
+
+        assert len(lobby_to_hosts) == lobby_count
+        for i in range(lobby_count):
+            assert i in lobby_to_hosts
+            assert i in lobby_to_teams
+
+        # change to the map key from lobby index to host id
+        host_to_teams = {host_did: lobby_to_teams[lobby_i] for lobby_i, host_did in lobby_to_hosts.items()}
+
+        return host_to_teams
+
+    #
+    @admin_group.command(name="sort-lobbies", description="Sort the teams in the session into lobbies.")
+    async def sort_lobbies(self, interaction: discord.Interaction):
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+
+            with Session(self.engine) as session:
+                await interaction.response.defer()
+
+                gosession = self.require_gosession(interaction, session)
+                assert interaction.channel_id
+
+                lobbies, hosts, teams, signups = self.load_session_data(interaction, session)
+
+                host_to_teams = self.do_sort_lobbies(hosts, teams)
+
+                for host_did, teams in sorted(host_to_teams.items()):
+                    print(f"host {host_did}")
+                    for t in teams:
+                        print(f"  {t}")
+
+                self.upload_sorted_lobbies(gosession, lobbies, signups, host_to_teams, session)
+
+                # reload the session data from the DB since it becomes invalidated after commmit
+                lobbies, hosts, teams, signups = self.load_session_data(interaction, session)
+
+                print("")
+                for h in hosts:
+                    print(f"Host: {h}")
+                print("")
+                for su in signups:
+                    print(f"Signup: {su}")
+                print("")
+                lobby_player_count = defaultdict(int)
+                for l in lobbies:
+                    print(f"Lobby: {l}")
+                    print(f"  {l.host}")
+                    print(f"  {l.session}")
+                    print(f"  n signups: {len(l.signups)}")
+                    for su in l.signups:
+                        lobby_player_count[l.id] += su.team.team_size
+
+                msg = ""
+                for i, lobby in enumerate(lobbies):
+                    msg += f"### Lobby {i+1} hosted by <@{lobby.host_did}>\n"
+                    msg += f"{len(lobby.signups)} teams, {lobby_player_count[l.id]}  players\n"
+                    for j, signup in enumerate(lobby.signups):
+                        igns = [r.player.pf_player.ign for r in signup.team.rosters]
+                        msg += f"{chr(ord('A')+j)}: **{escmd(signup.team.team_name)}** *({signup.team.team_rating:,.0f})* -- {', '.join(igns)}\n"
+
+                await interaction.followup.send(msg)
+
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
+
+    #
+    def upload_sorted_lobbies(self, gosession: GoSession, lobbies, signups, host_to_teams, session):
+        # clear out all past lobby assignments for all teams
+        for su in signups:
+            su.lobby = None
+
+        # if we need more lobbies create them
+        for i in range(len(lobbies), len(host_to_teams)):
+            lobbies.append(GoLobby(session_id=gosession.id))
+
+        # if we have too many lobbies delete the extras
+        for lobby in lobbies[len(host_to_teams) :]:
+            session.delete(lobby)
+        lobbies = lobbies[: len(host_to_teams)]
+
+        # host_map = {h.host_did: h for h in hosts}
+        team_to_signup = {su.team_id: su for su in signups}
+
+        for lobby, (host_did, teams) in zip(lobbies, sorted(host_to_teams.items())):
+            # host = host_map[host_did]
+            lobby.host_did = host_did
+            lobby.session = gosession
+            lobby.lobby_code = None
+            lobby.signups.clear()
+            session.add(lobby)
+
+            for team in teams:
+                signup = team_to_signup[team.id]
+                lobby.signups.append(signup)
+
+        session.commit()
+
+    #
+    def load_session_data(self, interaction, session):
+        statement = select(GoLobby).where(GoLobby.session_id == interaction.channel_id)
+        lobbies = session.exec(statement).all()
+
+        for lobby in lobbies:
+            if lobby.lobby_code is not None:
+                msg = f"Error: Cannot sort lobbies after lobby code has been set."
+                raise DiscordUserError(msg)
+
+        statement = select(GoHost).where(GoHost.session_id == interaction.channel_id)
+        statement = statement.where(GoHost.status == "confirmed")
+        hosts = session.exec(statement).all()
+
+        statement = select(GoTeam, GoSignup).where(GoSignup.session_id == interaction.channel_id)
+        statement = statement.where(GoSignup.team_id == GoTeam.id)
+        statement = statement.order_by(GoSignup.signup_time)  # type: ignore
+        team_rows = session.exec(statement).all()
+
+        # fetch all the players for this session so they're cached when
+        # we later access team.roster
+        statement = select(GoTeam, GoSignup, GoRoster, GoPlayer)
+        statement = statement.where(GoSignup.session_id == interaction.channel_id)
+        statement = statement.where(GoSignup.team_id == GoTeam.id)
+        statement = statement.where(GoTeam.id == GoRoster.team_id)
+        statement = statement.where(GoRoster.discord_id == GoPlayer.discord_id)
+        statement = statement.order_by(GoSignup.signup_time)  # type: ignore
+        player_rows = session.exec(statement).all()
+
+        lobbies = [_ for _ in lobbies]
+        hosts = [_ for _ in hosts]
+        teams = [_[0] for _ in team_rows]
+        signups = [_[1] for _ in team_rows]
+
+        return lobbies, hosts, teams, signups
+
+    #
+    def log_command(self, interaction):
+        group_name = interaction.command.parent.name + "." if interaction.command.parent else ""
+        command_name = interaction.command.name
+        logger.info(f"Command {group_name}{command_name} called by user {get_name(interaction.user)}.")
+
+    #
+    def check_admin_permissions(self, interaction):
         if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run admin_set_ign")
-            await interaction.response.send_message("You dont have permission to use this command!")
-            return
+            logger.warn(f"User {get_name(interaction.user)} tried to run an admin command")
+            msg = f"You dont have permission to use this command."
+            raise DiscordUserError(msg)
 
-        player = convert_user(user)
-        await self.handle_set_ign("admin_set_ign", interaction, player, ign)
+    #
+    def require_gosession(self, interaction, session):
+        gosession = self.godb.get_session(interaction.channel_id, session)
+        if not gosession or not interaction.channel_id:
+            msg = f"Error: no session set up on channel {interaction.channel}."
+            raise DiscordUserError(msg)
+        return gosession
+
+    #
+    @admin_group.command(
+        name="wipe-commands", description="Use with caution. Clears all the bot commands so they can be reloaded."
+    )
+    async def wipe_commands(self, interaction: discord.Interaction):
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+
+            await interaction.response.send_message("clear_commands starting.")
+            await self.bot.tree.sync(guild=MY_GUILD)
+            self.bot.tree.clear_commands(guild=MY_GUILD)
+            self.bot.tree.clear_commands(guild=None)
+            await self.bot.tree.sync()
+
+            await interaction.user.send("clear_commands complete.")
+            logger.info(f"clear_commands complete.")
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
+
+    #
+    @admin_group.command(name="set-ign", description="Admin tool to set a user's In Game Name")
+    async def admin_set_ign(self, interaction: discord.Interaction, user: discord.Member, ign: str):
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+            player = convert_user(user)
+            await self.handle_set_ign("admin_set_ign", interaction, player, ign)
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     @admin_group.command(name="cancel", description="Admin tool to cancel a signup")
     async def admin_cancel(self, interaction: discord.Interaction, player: discord.Member):
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run admin_cancel")
-            await interaction.response.send_message("You dont have permission to use this command.")
-            return
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
 
-        converted_player = convert_user(player)
-        await self.handle_cancel("admin_cancel", interaction, converted_player)
+            converted_player = convert_user(player)
+            await self.handle_cancel("admin_cancel", interaction, converted_player)
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
-    @admin_group.command(description="Set the session date & time for this channel")
+    @admin_group.command(name="set-session-time", description="Set the session date & time for this channel")
     async def set_session_time(self, interaction: discord.Interaction, date_time: str):
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run set_session_time")
-            await interaction.response.send_message("You dont have permission to use this command.")
-            return
-
-        logger.info(f"Running go_admin.set_session_time({date_time})")
-
         try:
-            date2 = parser.parse(date_time)
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+            date = parser.parse(date_time)
 
             if interaction.channel is None or interaction.channel_id is None:
                 msg = "Error with discord -- cannot get channel info."
@@ -845,8 +1112,8 @@ class GoCog(commands.Cog):
 
             with Session(self.engine) as session:
                 session_id = interaction.channel_id
-                self.godb.set_session_time(session_id=session_id, session_time=date2, session=session)
-                msg = f'Session date for "{interaction.channel.name}" set to {time_str(date2)}'  # type: ignore
+                self.godb.set_session_time(session_id=session_id, session_time=date, session=session)
+                msg = f'Session date for "{interaction.channel.name}" set to {time_str(date)}'  # type: ignore
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
@@ -856,78 +1123,96 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(msg)
 
     #
-    @admin_group.command(description="Get the session date for this channel")
+    @admin_group.command(name="get-session-time", description="Get the session date for this channel")
     async def get_session_time(self, interaction: discord.Interaction):
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run get_session_time")
-            await interaction.response.send_message("You dont have permission to use this command!")
-            return
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
 
-        logger.info(f"Running go_admin.get_session_time")
-
-        if interaction.channel is None or interaction.channel_id is None:
-            msg = "Error with discord -- cannot get channel info."
-            logger.error(msg)
-            await interaction.response.send_message(msg)
-            return
-
-        with Session(self.engine) as session:
-            session_id = interaction.channel_id
-            gosession = self.godb.get_session(session_id, session)
-            if not gosession:
-                msg = "No session set up for this channel."
-            else:
+            with Session(self.engine) as session:
+                gosession = self.require_gosession(interaction, session)
                 msg = f'Session time for "{interaction.channel}" is {time_str(gosession.session_time)}.'
                 msg += f"\nSignups are {gosession.signup_state}."
-            logger.info(msg)
-            await interaction.response.send_message(msg)
+                logger.info(msg)
+                await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     async def set_session_state(self, interaction: discord.Interaction, state: str):
-        if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run {state}_session")
-            await interaction.response.send_message("You dont have permission to use this command.")
-            return
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
 
-        logger.info(f"Running go_admin.set_session_state({state})")
+            with Session(self.engine) as session:
+                gosession = self.require_gosession(interaction, session)
+                gosession.signup_state = state
+                session.add(gosession)
+                session.commit()
 
-        if interaction.channel is None or interaction.channel_id is None:
-            msg = "Error with discord -- cannot get channel ID."
-            logger.error(msg)
-            await interaction.response.send_message(msg)
-            return
-
-        with Session(self.engine) as session:
-            session_id = interaction.channel_id
-            gosession = self.godb.get_session(session_id, session)
-            if not gosession:
-                msg = "No session set up for this channel. Run `/goadmin set_session_time` first."
-                logger.warn(msg)
+                msg = f"Session signups set to {state} for {interaction.channel}"
+                logger.info(msg)
                 await interaction.response.send_message(msg)
-                return
 
-            gosession.signup_state = state
-            session.add(gosession)
-            session.commit()
-
-            msg = f"Session signups set to {state} for {interaction.channel}"
-            logger.info(msg)
-            await interaction.response.send_message(msg)
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
-    @admin_group.command(description="Set the signup state to open")
+    @admin_group.command(name="set-session-open", description="Set the signup state to open")
     async def session_set_open(self, interaction: discord.Interaction):
         await self.set_session_state(interaction, "open")
 
     #
-    @admin_group.command(description="Set the signup state to close")
+    @admin_group.command(name="set-session-closed", description="Set the signup state to close")
     async def session_set_closed(self, interaction: discord.Interaction):
         await self.set_session_state(interaction, "closed")
 
     #
-    @admin_group.command(description="Set the signup state to close")
+    @admin_group.command(name="set-session-frozen", description="Set the signup state to close")
     async def session_set_change_only(self, interaction: discord.Interaction):
         await self.set_session_state(interaction, "change_only")
+
+    #
+    @admin_group.command(name="set-host", description="Add a host to this session")
+    async def set_host(self, interaction: discord.Interaction, player: discord.Member):
+        try:
+            self.log_command(interaction)
+            with Session(self.engine) as session:
+                gosession = self.require_gosession(interaction, session)
+
+                goplayer = self.godb.read_player(player.id, session)
+                if not goplayer:
+                    raise DiscordUserError(f"{player.name} needs to run `/go set_ign`.")
+
+                self.godb.set_host(goplayer.discord_id, gosession.id, "confirmed", session)
+
+                msg = f"<@{goplayer.discord_id}> set as host for {interaction.channel}."
+                logger.info(msg)
+                await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
+
+    #
+    @admin_group.command(name="remove-host", description="Remove a host from this session")
+    async def remove_host(self, interaction: discord.Interaction, player: discord.Member):
+        try:
+            self.log_command(interaction)
+            with Session(self.engine) as session:
+                gosession = self.require_gosession(interaction, session)
+                self.godb.remove_host(player.id, gosession.id, session)
+
+                msg = f"<@{player.id}> removed as host for {interaction.channel}."
+                logger.info(msg)
+                await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warn(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     async def send_dms(self):

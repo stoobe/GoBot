@@ -9,7 +9,15 @@ from sqlmodel import Session, delete, func, select
 
 from go.bot.exceptions import GoDbError
 from go.bot.logger import create_logger
-from go.bot.models import GoPlayer, GoRatings, GoRoster, GoSession, GoSignup, GoTeam
+from go.bot.models import (
+    GoHost,
+    GoPlayer,
+    GoRatings,
+    GoRoster,
+    GoSession,
+    GoSignup,
+    GoTeam,
+)
 
 logger = create_logger(__name__)
 
@@ -269,7 +277,9 @@ class GoDB:
         return teams
 
     #
-    def get_session(self, session_id: int, session: Session) -> Optional[GoSession]:
+    def get_session(self, session_id: int | None, session: Session) -> Optional[GoSession]:
+        if not session_id:
+            return None
         statement = select(GoSession).where(GoSession.id == session_id)
         return session.exec(statement).first()
 
@@ -310,3 +320,26 @@ class GoDB:
         if rating is None:
             return None
         return rating.go_rating
+
+    #
+    def set_host(self, discord_id: int, session_id: int, status: str, session: Session):
+        statement = select(GoHost).where(GoHost.host_did == discord_id).where(GoHost.session_id == session_id)
+        host = session.exec(statement).first()
+
+        if host is None:
+            host = GoHost(host_did=discord_id, session_id=session_id, status=status)
+            session.add(host)
+            session.commit()
+        else:
+            host.status = status
+            session.add(host)
+            session.commit()
+
+    #
+    def remove_host(self, discord_id: int, session_id: int, session: Session):
+        statement = select(GoHost).where(GoHost.host_did == discord_id).where(GoHost.session_id == session_id)
+        host = session.exec(statement).first()
+
+        if host is not None:
+            session.delete(host)
+            session.commit()

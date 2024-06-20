@@ -1,12 +1,17 @@
 from datetime import datetime
 from typing import Generator
 
+import discord
+import discord.ext.commands as commands
+import discord.ext.test as dpytest
 import pytest
+import pytest_asyncio
 from discord.ext import commands
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
 import _config
+from go.bot.go_bot import GoBot
 from go.bot.go_cog import DiscordUser, GoCog
 from go.bot.go_db import GoDB
 from go.bot.models import GoPlayer, GoTeam, PfCareerStats, PfPlayer
@@ -339,3 +344,28 @@ def du2(go_p2, scope="function"):
 @pytest.fixture
 def du3(go_p3, scope="function"):
     return DiscordUser(id=go_p3.discord_id, name=go_p3.discord_name)
+
+
+# @pytest_asyncio.fixture
+# async def bot(engine, godb, pfdb):
+#     # Setup
+#     intents = discord.Intents.default()
+#     intents.members = True
+#     intents.message_content = True
+#     b = GoBot(command_prefix="!", intents=intents, engine=engine)
+#     b.godb = godb
+#     b.pfdb = pfdb
+#     # b = commands.Bot(command_prefix="!", intents=intents)
+#     await b._async_setup_hook()
+#     dpytest.configure(b)
+
+#     yield b
+
+#     # Teardown
+#     await dpytest.empty_queue()  # empty the global message queue as test teardown
+
+
+# @pytest_asyncio.fixture
+# async def cog2(bot):
+#     cog = GoCog(bot)
+#     yield cog
