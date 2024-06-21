@@ -1,5 +1,7 @@
+import re
 from datetime import datetime
-from typing import Generator
+from types import SimpleNamespace
+from typing import Generator, List
 
 import discord
 import discord.ext.commands as commands
@@ -16,6 +18,23 @@ from go.bot.go_cog import DiscordUser, GoCog
 from go.bot.go_db import GoDB
 from go.bot.models import GoPlayer, GoTeam, PfCareerStats, PfPlayer
 from go.bot.playfab_db import PlayfabDB
+
+
+@pytest.fixture
+def dates() -> Generator[List[datetime], None, None]:
+    yield [
+        datetime(2023, 1, 1),
+        datetime(2023, 1, 2),
+        datetime(2023, 1, 3),
+        datetime(2023, 1, 4),
+        datetime(2023, 1, 5),
+        datetime(2023, 1, 6),
+    ]
+
+
+@pytest.fixture
+def channels() -> Generator[List[int], None, None]:
+    yield [1111, 2222, 3333, 4444, 5555, 6666]
 
 
 @pytest.fixture
@@ -43,6 +62,16 @@ def go_p3() -> Generator[GoPlayer, None, None]:
     player = GoPlayer(
         discord_id=103,
         discord_name="dn3",
+        pf_player_id=None,
+    )
+    yield player
+
+
+@pytest.fixture
+def go_p_owner() -> Generator[GoPlayer, None, None]:
+    player = GoPlayer(
+        discord_id=_config.owner_id,
+        discord_name="OWNER",
         pf_player_id=None,
     )
     yield player
@@ -228,6 +257,26 @@ def stats_p3_1() -> Generator[PfCareerStats, None, None]:
 
 
 @pytest.fixture
+def du1(go_p1, scope="function"):
+    return DiscordUser(id=go_p1.discord_id, name=go_p1.discord_name)
+
+
+@pytest.fixture
+def du2(go_p2, scope="function"):
+    return DiscordUser(id=go_p2.discord_id, name=go_p2.discord_name)
+
+
+@pytest.fixture
+def du3(go_p3, scope="function"):
+    return DiscordUser(id=go_p3.discord_id, name=go_p3.discord_name)
+
+
+@pytest.fixture
+def du_owner(go_p_owner, scope="function"):
+    return DiscordUser(id=go_p_owner.discord_id, name=go_p_owner.discord_name)
+
+
+@pytest.fixture
 def engine(scope="session") -> Generator[Engine, None, None]:
     sqlite_url = f"sqlite://"  # in mem
     engine = create_engine(sqlite_url, echo=_config.godb_echo)
@@ -332,18 +381,73 @@ def gocog_preload(
 
 
 @pytest.fixture
-def du1(go_p1, scope="function"):
-    return DiscordUser(id=go_p1.discord_id, name=go_p1.discord_name)
+def gocog_preload_teams(gocog_preload, du1, du2, du3, channels, dates, session, scope="function"):
+
+    gocog_preload.godb.set_session_time(session_id=channels[0], session_time=dates[0], session=session)
+    gocog_preload.do_signup(players=[du1], team_name="tname1", session_id=channels[0], session=session)
+    session.commit()
+    yield gocog_preload
+
+
+class UserStub:
+    def __init__(self, du):
+        self.id = du.id
+        self.name = du.name
+        self.last_message = None
+
+    def send(self, message):
+        self.last_message = message
+
+
+class ResponseStub:
+    def __init__(self):
+        self.last_message = None
+
+    async def send_message(self, message, ephemeral=False):
+        self.last_message = message
+
+    async def send(self, message):
+        self.last_message = message
+
+    async def defer(self):
+        pass
+
+
+class InteractionStub:
+    def __init__(self, du, channel_id):
+        self.user = UserStub(du)
+
+        self.command = SimpleNamespace()
+        self.command.parent = SimpleNamespace()
+        self.command.parent.name = "go"
+        self.command.name = "command_name"
+
+        self.response = ResponseStub()
+        self.followup = self.response
+
+        self.channel_id = channel_id
+        self.channel = f"channel {self.channel_id}"
+
+    def assert_msg_count(self, msg, n=1):
+        print(self.response.last_message)
+        assert self.response.last_message is not None
+        assert self.response.last_message.count(msg) == n
+
+    def assert_msg_regx(self, pattern):
+        print(self.response.last_message)
+        assert self.response.last_message is not None
+        match = re.search(pattern, self.response.last_message)
+        assert match
 
 
 @pytest.fixture
-def du2(go_p2, scope="function"):
-    return DiscordUser(id=go_p2.discord_id, name=go_p2.discord_name)
+def interaction1(du1, channels, scope="function"):
+    return InteractionStub(du1, channels[0])
 
 
 @pytest.fixture
-def du3(go_p3, scope="function"):
-    return DiscordUser(id=go_p3.discord_id, name=go_p3.discord_name)
+def interaction_owner(du_owner, channels, scope="function"):
+    return InteractionStub(du_owner, channels[0])
 
 
 # @pytest_asyncio.fixture

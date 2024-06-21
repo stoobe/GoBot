@@ -42,10 +42,9 @@ def time_str(dt: datetime) -> str:
 def get_name(member: Union[discord.Member, discord.User, None]) -> str:
     if member is None:
         return ""
-    elif type(member) == discord.User:
-        return member.global_name or member.display_name or member.name
-    elif type(member) == discord.Member:
-        return member.nick or member.global_name or member.display_name or member.name
+    for attr in ["nick", "global_name", "display_name", "name"]:
+        if hasattr(member, attr):
+            return getattr(member, attr)
     else:
         raise Exception(f"unreachable ")
 
@@ -87,17 +86,8 @@ class GoCog(commands.Cog):
         self.godb: GoDB = bot.godb  # type: ignore
         self.pfdb: PlayfabDB = bot.pfdb  # type: ignore
 
+        self.dms_enabled = True
         self.dm_queue = []
-
-    #
-    def get_channel_time(self, interaction: discord.Interaction, session: Session) -> datetime:
-        if interaction.channel_id is None:
-            logger.warn(f"interaction.channel_id is None")
-            raise DiscordUserError("Error with discord -- interaction.channel_id is None.", code=ErrorCode.MISC_ERROR)
-        date = self.godb.get_session_time(session_id=interaction.channel_id, session=session)
-        if date is None:
-            raise DiscordUserError("Signups not enabled on this channel.")
-        return date
 
     #
     def set_rating_if_needed(self, pf_player_id, session, season: str) -> Optional[float]:
@@ -213,7 +203,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -273,7 +263,7 @@ class GoCog(commands.Cog):
             logger.info(msg)
             await interaction.response.send_message(msg, ephemeral=True)
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message, ephemeral=True)
 
     #
@@ -303,7 +293,7 @@ class GoCog(commands.Cog):
 
         if player is not None:
             if interaction.user.id != _config.owner_id:
-                logger.warn(f"User {get_name(interaction.user)} tried to run rename_team for another player")
+                logger.warning(f"User {get_name(interaction.user)} tried to run rename_team for another player")
                 await interaction.response.send_message(
                     "You dont have permission to use this command for other players"
                 )
@@ -313,17 +303,18 @@ class GoCog(commands.Cog):
 
         try:
             with Session(self.engine) as session:
+                gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id is not None
 
                 p = convert_user(player)  # type: ignore
-                logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel.name})")  # type: ignore
+                logger.info(f"Running rename_team({p.name}, {new_team_name}, {interaction.channel})")  # type: ignore
 
                 team = self.do_rename_team(new_team_name, p, session_id=interaction.channel_id, session=session)
                 msg = f"Team name changed to {team.team_name}"
                 logger.info(msg)
                 await interaction.response.send_message(msg)
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -374,7 +365,7 @@ class GoCog(commands.Cog):
         if players_to_set_ign:
             msg = ""
             for player in players_to_set_ign:
-                msg += f"- Player {player.name} needs run `/go set_ign`.\n"
+                msg += f"- Player {player.name} needs to run `/go set_ign`.\n"
             raise DiscordUserError(msg)
 
         if len(discord_ids) < len(players):
@@ -515,7 +506,7 @@ class GoCog(commands.Cog):
                 await self.send_dms()
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -600,7 +591,7 @@ class GoCog(commands.Cog):
 
         except DiscordUserError as err:
             session.rollback()
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -669,7 +660,7 @@ class GoCog(commands.Cog):
                 await self.send_dms()
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -733,7 +724,7 @@ class GoCog(commands.Cog):
                 await interaction.followup.send(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -762,21 +753,48 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
+
+    #
+    @go_group.command(name="flip-coin", description="Flip a coin or random number generator between 1 and random_num.")
+    async def flip_coin(self, interaction: discord.Interaction, random_num: Optional[int] = None):
+        try:
+            self.log_command(interaction)
+
+            if random_num is not None:
+                if random_num < 1:
+                    msg = "Random number must be greater than 0."
+                    raise DiscordUserError(msg)
+                result = random.randint(1, random_num)
+                msg = f"Random number between 1 and {random_num}: {result}"
+            else:
+                result = random.choice(["Heads", "Tails"])
+                msg = f"Coin flip: {result}"
+
+            logger.info(msg)
+            await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
     @admin_group.command(name="sync-commands", description="Syncs bot commands")
     async def sync_commands(self, interaction: discord.Interaction):
-        self.log_command(interaction)
-        self.check_admin_permissions(interaction)
+        try:
+            self.log_command(interaction)
+            self.check_admin_permissions(interaction)
 
-        await interaction.response.send_message("Sync starting.")
-        self.bot.tree.copy_global_to(guild=MY_GUILD)
-        await self.bot.tree.sync(guild=MY_GUILD)
+            await interaction.response.send_message("Sync starting.")
+            self.bot.tree.copy_global_to(guild=MY_GUILD)
+            await self.bot.tree.sync(guild=MY_GUILD)
 
-        await interaction.user.send("Command tree synced.")
-        logger.info("Command tree synced.")
+            await interaction.user.send("Command tree synced.")
+            logger.info("Command tree synced.")
+        except DiscordUserError as err:
+            logger.warning(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     def get_lobby_counts(self, player_count):
@@ -960,7 +978,7 @@ class GoCog(commands.Cog):
                 await interaction.followup.send(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1040,7 +1058,7 @@ class GoCog(commands.Cog):
     #
     def check_admin_permissions(self, interaction):
         if interaction.user.id != _config.owner_id:
-            logger.warn(f"User {get_name(interaction.user)} tried to run an admin command")
+            logger.warning(f"User {get_name(interaction.user)} tried to run an admin command")
             msg = f"You dont have permission to use this command."
             raise DiscordUserError(msg)
 
@@ -1070,7 +1088,7 @@ class GoCog(commands.Cog):
             await interaction.user.send("clear_commands complete.")
             logger.info(f"clear_commands complete.")
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1082,7 +1100,7 @@ class GoCog(commands.Cog):
             player = convert_user(user)
             await self.handle_set_ign("admin_set_ign", interaction, player, ign)
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1095,7 +1113,7 @@ class GoCog(commands.Cog):
             converted_player = convert_user(player)
             await self.handle_cancel("admin_cancel", interaction, converted_player)
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1113,14 +1131,18 @@ class GoCog(commands.Cog):
             with Session(self.engine) as session:
                 session_id = interaction.channel_id
                 self.godb.set_session_time(session_id=session_id, session_time=date, session=session)
-                msg = f'Session date for "{interaction.channel.name}" set to {time_str(date)}'  # type: ignore
+                msg = f'Session date for "{interaction.channel}" set to {time_str(date)}'  # type: ignore
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
         except parser.ParserError as err:
             msg = f"Error: Could not parse date string '{date_time}'"
-            logger.warn(msg)
+            logger.warning(msg)
             await interaction.response.send_message(msg)
+
+        except DiscordUserError as err:
+            logger.warning(f"Caught error code {err.code}: {err.message}")
+            await interaction.response.send_message(err.message)
 
     #
     @admin_group.command(name="get-session-time", description="Get the session date for this channel")
@@ -1137,7 +1159,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1157,7 +1179,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1180,6 +1202,8 @@ class GoCog(commands.Cog):
     async def set_host(self, interaction: discord.Interaction, player: discord.Member):
         try:
             self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+
             with Session(self.engine) as session:
                 gosession = self.require_gosession(interaction, session)
 
@@ -1194,7 +1218,7 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
@@ -1202,6 +1226,8 @@ class GoCog(commands.Cog):
     async def remove_host(self, interaction: discord.Interaction, player: discord.Member):
         try:
             self.log_command(interaction)
+            self.check_admin_permissions(interaction)
+
             with Session(self.engine) as session:
                 gosession = self.require_gosession(interaction, session)
                 self.godb.remove_host(player.id, gosession.id, session)
@@ -1211,24 +1237,26 @@ class GoCog(commands.Cog):
                 await interaction.response.send_message(msg)
 
         except DiscordUserError as err:
-            logger.warn(f"Caught error code {err.code}: {err.message}")
+            logger.warning(f"Caught error code {err.code}: {err.message}")
             await interaction.response.send_message(err.message)
 
     #
     async def send_dms(self):
-        for discord_id, message in self.dm_queue:
-            user = self.bot.get_user(discord_id)
-            if user is None:
-                continue
-            await user.send(message)
+        if self.dms_enabled:
+            for discord_id, message in self.dm_queue:
+                user = self.bot.get_user(discord_id)
+                if user is None:
+                    continue
+                await user.send(message)
 
     #
     async def alert_users(self, discord_ids: List[int], message: str):
-        for discord_id in discord_ids:
-            user = self.bot.get_user(discord_id)
-            if user is None:
-                continue
-            await user.send(message)
+        if self.dms_enabled:
+            for discord_id in discord_ids:
+                user = self.bot.get_user(discord_id)
+                if user is None:
+                    continue
+                await user.send(message)
 
     #
     async def cog_load(self):
