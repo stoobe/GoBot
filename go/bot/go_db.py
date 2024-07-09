@@ -343,3 +343,9 @@ class GoDB:
         if host is not None:
             session.delete(host)
             session.commit()
+
+    #
+    def get_hosts(self, session_id: int, session: Session) -> List[GoHost]:
+        statement = select(GoHost).where(GoHost.session_id == session_id)
+        hosts = [_ for _ in session.exec(statement).all()]
+        return hosts

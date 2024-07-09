@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 
 class Stats(BaseModel):
-    ign: str | None = None
-    playfab: str | None = None
-    team_size: int | None = None
+    ign: Optional[str] = None
+    playfab: Optional[str] = None
+    team_size: Optional[int] = None
     games: int = 0
     wr: float = 0.0
     kpg: float = 0.0
     dpg: float = 0.0
-    orig_rating: float | None = None
+    orig_rating: Optional[float] = None
 
     def add_game(self, place, kills, damage):
         win = 1.0 if place == 1 else 0.0

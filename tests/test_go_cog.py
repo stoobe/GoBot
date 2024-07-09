@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy.exc import InvalidRequestError
@@ -6,7 +6,11 @@ from sqlalchemy.exc import InvalidRequestError
 import _config
 from go.bot.exceptions import DiscordUserError
 from go.bot.go_cog import DiscordUser
+from go.bot.logger import create_logger
+from go.bot.models import GoRatings, PfCareerStats, PfPlayer
 from go.bot.playfab_api import as_player_id
+
+logger = create_logger(__name__)
 
 date1 = datetime(2023, 1, 1)
 date2 = datetime(2023, 1, 2)
@@ -489,3 +493,113 @@ def test_cancel_return_values(gocog_preload, godb, session, du1, du2, du3):
 
     signup = gocog_preload.do_cancel(player=du2, session_id=channel2, session=session)
     assert signup.session_id == channel2
+
+
+def test_session_times(gocog, session):
+    gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+
+    time1 = gocog.godb.get_session_time(session_id=channel1, session=session)
+    assert time1 == date1
+
+    time2 = gocog.godb.get_session_time(session_id=channel2, session=session)
+    assert time2 is None
+
+
+def tests_hosts(gocog, session, du1, du2):
+    gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+
+    hosts = gocog.godb.get_hosts(session_id=channel1, session=session)
+    assert len(hosts) == 0
+
+    gocog.godb.set_host(du1.id, channel1, "confirmed", session)
+    hosts = gocog.godb.get_hosts(session_id=channel1, session=session)
+    assert len(hosts) == 1
+
+    gocog.godb.set_host(du2.id, channel1, "confirmed", session)
+    hosts = gocog.godb.get_hosts(session_id=channel1, session=session)
+    assert len(hosts) == 2
+
+
+def test_sort_lobbies(gocog_preload, godb, session, du1, du2, du3):
+    gocog = gocog_preload
+    gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+    gocog.godb.set_host(du1.id, channel1, "confirmed", session)
+
+    signup1 = gocog.do_signup(players=[du1], team_name="tname1", session_id=channel1, session=session)
+    signup2 = gocog.do_signup(players=[du2], team_name="tname2", session_id=channel1, session=session)
+
+    hosts = gocog.godb.get_hosts(session_id=channel1, session=session)
+    teams = gocog.godb.get_teams_for_session(session_id=channel1, session=session)
+
+    host_to_teams = gocog.do_sort_lobbies(hosts, teams)
+    print(host_to_teams)
+
+    assert len(host_to_teams) == 1
+    assert du1.id in host_to_teams
+    assert len(host_to_teams[du1.id]) == 2
+
+
+def test_sort_lobbies2(gocog_preload, session):
+    gocog = gocog_preload
+    gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+
+    for i in range(1000, 1036):
+        du = DiscordUser(id=i, name=f"du{i}")
+        pf_player = PfPlayer(id=i, ign=f"pf{i}", account_created=datetime.now(), last_login=datetime.now())
+        gocog.pfdb.create_player(pf_player, session=session)
+        gocog.do_set_ign(player=du, ign=pf_player.ign, session=session)
+
+        pf_stats = PfCareerStats(date=datetime.now(), pf_player_id=i, games=1, wins=1, kills=1, damage=100)
+        gocog.pfdb.add_career_stats(stats=pf_stats, session=session)
+        gocog.set_rating_if_needed(pf_player.id, session, season=_config.go_season)
+
+        gocog.do_signup(players=[du], team_name=f"tname{i}", session_id=channel1, session=session)
+
+        if i < 1002:
+            gocog.godb.set_host(i, channel1, "confirmed", session)
+
+    session.commit()
+
+    hosts = gocog.godb.get_hosts(session_id=channel1, session=session)
+    assert len(hosts) == 2
+
+    teams = gocog.godb.get_teams_for_session(session_id=channel1, session=session)
+    assert len(teams) == 36
+
+    host_to_teams = gocog.do_sort_lobbies(hosts, teams)
+    logger.info(host_to_teams)
+
+    assert len(host_to_teams) == 2
+    assert 1000 in host_to_teams
+    assert 1001 in host_to_teams
+    assert len(host_to_teams[1000]) == 18
+    assert len(host_to_teams[1001]) == 18
+
+
+@pytest.mark.parametrize(
+    "player_list",
+    [
+        #rating, team_id, is_host, lobby_id
+        [
+        (1000, 101, True, 1),
+        (1000, 101, False, 1),
+        ],
+    ],
+)
+def test_update_player(gocog, session, player_list):
+    godb = gocog.godb
+    pfdb = gocog.pfdb
+    gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
+    
+    for player_id, (rating, team_id, is_host, lobby_id) in enumerate(player_list):
+        pf_player = PfPlayer(id=player_id, ign=f"ign{player_id}", account_created=datetime.now(), last_login=datetime.now())
+        pfdb.create_player(player=pf_player, session=session)
+        
+        official_rating = GoRatings(pf_player_id=pf_player.id, season=_config.go_season, rating_type="official", go_rating=rating)
+        session.add(official_rating)
+        
+        du = DiscordUser(id=player_id, name=f"du{player_id}")
+        go_player = gocog.do_set_ign(player=du, ign=pf_player.ign, session=session)
+        # go_player = GoPlayer(discord_id=player_id, discord_name=f"du{player_id}", pf_player_id=pf_player.id)
+        
+        
