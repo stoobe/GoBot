@@ -44,9 +44,11 @@ def get_name(member: Union[discord.Member, discord.User, None]) -> str:
         return ""
     for attr in ["nick", "global_name", "display_name", "name"]:
         if hasattr(member, attr):
-            return getattr(member, attr)
+            val = getattr(member, attr)
+            if val:
+                return val
     else:
-        raise Exception(f"unreachable ")
+        raise Exception(f"in get_name no attributes had a value for {member}")
 
 
 def escmd(text: str) -> str:
@@ -483,8 +485,8 @@ class GoCog(commands.Cog):
                     raise DiscordUserError(msg)
 
                 players: List[Optional[DiscordUser]] = [convert_user(player1)]
-                players.append(convert_user(player2) if player2 else None)
-                players.append(convert_user(player3) if player3 else None)
+                players.append(None if not player2 else convert_user(player2))
+                players.append(None if not player3 else convert_user(player3))
 
                 if team_name:
                     team_name = team_name.strip()
@@ -741,7 +743,9 @@ class GoCog(commands.Cog):
                 for s in sessions:
                     # skip the dev channel
                     if s.id == 1127111098290675864:
-                        continue
+                        #unless we're in the dev channel
+                        if interaction.channel_id != 1127111098290675864:
+                            continue
                     player_count = 0
                     for signup in s.signups:
                         player_count += signup.team.team_size
@@ -749,6 +753,10 @@ class GoCog(commands.Cog):
                     if s.signup_state != "closed":
                         state_str = f" (signups *{s.signup_state}*)"
                     msg += f"<#{s.id}> -- {len(s.signups)} teams  {player_count} players{state_str}\n"
+                
+                if not msg:
+                    msg = "No sessions found."
+                    
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
