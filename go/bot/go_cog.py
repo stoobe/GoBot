@@ -983,11 +983,11 @@ class GoCog(commands.Cog):
                         igns = [r.player.pf_player.ign for r in signup.team.rosters]
                         msg += f"{chr(ord('A')+j)}: **{escmd(signup.team.team_name)}** *({signup.team.team_rating:,.0f})* -- {', '.join(igns)}\n"
 
-                await interaction.followup.send(msg)
+                await interaction.followup.send(msg, ephemeral=True)
 
         except DiscordUserError as err:
             logger.warning(f"Caught error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message)
+            await interaction.response.send_message(err.message, ephemeral=True)
 
     #
     def upload_sorted_lobbies(self, gosession: GoSession, lobbies, signups, host_to_teams, session):

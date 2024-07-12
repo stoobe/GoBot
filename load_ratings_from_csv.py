@@ -30,8 +30,8 @@ def main():
 
     pfdb = PlayfabDB()
 
-    pfapi = PlayfabApi()
-    pfapi.login_to_playfab()
+    # pfapi = PlayfabApi()
+    # pfapi.login_to_playfab()
 
     success_count = 0
     fail_count = 0
@@ -51,13 +51,14 @@ def main():
                 pf_player_id = as_player_id(row.pfid)
 
                 if not pfdb.player_exists(pf_player_id=pf_player_id, session=session):
-                    print(f"get_player_from_account_info for pfid: {row.pfid}")
-                    pf_p = pfapi.get_player_from_account_info(player_id=pf_player_id)
-                    if pf_p is None:
-                        fail_count += 1
-                        continue
-                    session.add(pf_p)
-                    session.commit()
+                    continue
+                    # print(f"get_player_from_account_info for pfid: {row.pfid}")
+                    # pf_p = pfapi.get_player_from_account_info(player_id=pf_player_id)
+                    # if pf_p is None:
+                    #     fail_count += 1
+                    #     continue
+                    # session.add(pf_p)
+                    # session.commit()
 
                 rating = GoRatings(
                     pf_player_id=pf_player_id, season=args.season, rating_type=args.rating_type, go_rating=row.go_rating
