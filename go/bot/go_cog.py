@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 from pydantic import BaseModel
 from sqlmodel import Session, delete, select
+import pprint
 
 import _config
 from go.bot.exceptions import DiscordUserError, ErrorCode, GoDbError
@@ -872,7 +873,7 @@ class GoCog(commands.Cog):
         counting_up = True  # snake draft direction
         lobby_to_nplayers = defaultdict(int)
         lobby_to_teams = defaultdict(list)
-        lobby_to_hosts: Dict[int, int] = {}
+        lobby_to_host: Dict[int, int] = {}
 
         # highest rating at end of queue
         teams_in_queue = sorted(teams_in, key=lambda t: t.team_rating, reverse=True)
@@ -904,14 +905,14 @@ class GoCog(commands.Cog):
                 continue
 
             # if team has a host on the roster
-            if team.id in team_to_host:
+            if team.id in team_to_host: 
                 # if we already have a host for this lobby
-                if team.id in lobby_to_hosts:
+                if i in lobby_to_host:
                     # then look at the next team for this lobby
                     j += 1
                     continue
                 else:
-                    lobby_to_hosts[i] = team_to_host[team.id]
+                    lobby_to_host[i] = team_to_host[team.id]
 
             # if the team fits in the lobby
             # remove it from the queue and reset j to the beginning
@@ -922,13 +923,20 @@ class GoCog(commands.Cog):
             lobby_to_teams[i].append(team)
             i, counting_up = self.snake_draft_inc(i, counting_up, max_i=lobby_count)
 
-        assert len(lobby_to_hosts) == lobby_count
-        for i in range(lobby_count):
-            assert i in lobby_to_hosts
-            assert i in lobby_to_teams
+        print("lobby_to_nplayers")
+        pprint.pp(lobby_to_nplayers)
+        print("lobby_to_hosts")
+        pprint.pp(lobby_to_host)
+        print("lobby_to_teams")
+        pprint.pp(lobby_to_teams)
+
+        # assert len(lobby_to_hosts) == lobby_count
+        # for i in range(lobby_count):
+        #     assert i in lobby_to_hosts
+        #     assert i in lobby_to_teams
 
         # change to the map key from lobby index to host id
-        host_to_teams = {host_did: lobby_to_teams[lobby_i] for lobby_i, host_did in lobby_to_hosts.items()}
+        host_to_teams = {host_did: lobby_to_teams[lobby_i] for lobby_i, host_did in lobby_to_host.items()}
 
         return host_to_teams
 
