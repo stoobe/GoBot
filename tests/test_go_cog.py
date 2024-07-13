@@ -586,7 +586,7 @@ def test_sort_lobbies2(gocog_preload, session):
         ],
     ],
 )
-def test_update_player(gocog, session, player_list):
+def test_sort_lobbies3(gocog, session, player_list):
     godb = gocog.godb
     pfdb = gocog.pfdb
     gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)

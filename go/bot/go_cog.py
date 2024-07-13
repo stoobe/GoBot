@@ -940,7 +940,7 @@ class GoCog(commands.Cog):
             self.check_admin_permissions(interaction)
 
             with Session(self.engine) as session:
-                await interaction.response.defer()
+                await interaction.response.defer(ephemeral=True)
 
                 gosession = self.require_gosession(interaction, session)
                 assert interaction.channel_id
@@ -979,7 +979,7 @@ class GoCog(commands.Cog):
                 for i, lobby in enumerate(lobbies):
                     msg += f"### Lobby {i+1} hosted by <@{lobby.host_did}>\n"
                     msg += f"{len(lobby.signups)} teams, {lobby_player_count[l.id]}  players\n"
-                    for j, signup in enumerate(lobby.signups):
+                    for j, signup in enumerate(sorted(lobby.signups, key=lambda _:  -1*_.team.team_rating)):
                         igns = [r.player.pf_player.ign for r in signup.team.rosters]
                         msg += f"{chr(ord('A')+j)}: **{escmd(signup.team.team_name)}** *({signup.team.team_rating:,.0f})* -- {', '.join(igns)}\n"
 
@@ -987,7 +987,8 @@ class GoCog(commands.Cog):
 
         except DiscordUserError as err:
             logger.warning(f"Caught error code {err.code}: {err.message}")
-            await interaction.response.send_message(err.message, ephemeral=True)
+            await interaction.followup.send(err.message, ephemeral=True)
+            # await interaction.response.send_message(err.message, ephemeral=True)
 
     #
     def upload_sorted_lobbies(self, gosession: GoSession, lobbies, signups, host_to_teams, session):

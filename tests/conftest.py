@@ -406,10 +406,10 @@ class ResponseStub:
     async def send_message(self, message, ephemeral=False):
         self.last_message = message
 
-    async def send(self, message):
+    async def send(self, message, ephemeral=False):
         self.last_message = message
 
-    async def defer(self):
+    async def defer(self, ephemeral=False):
         pass
 
 
