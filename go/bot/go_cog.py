@@ -806,20 +806,17 @@ class GoCog(commands.Cog):
             await interaction.response.send_message(err.message)
 
     #
-    def get_lobby_counts(self, player_count):
+    def get_lobby_count(self, player_count):
         if player_count == 0:
             msg = "No players signed up for this session."
             raise DiscordUserError(msg)
         elif player_count < 30:
             lobbies_needed = 1
-            max_players = 24
         elif player_count <= 48:
             lobbies_needed = 2
-            max_players = 24 * 2
         else:
             lobbies_needed = 3
-            max_players = 24 * 3
-        return lobbies_needed, max_players
+        return lobbies_needed
 
     #
     def snake_draft_inc(self, i: int, counting_up: bool, max_i: int) -> tuple[int, bool]:
@@ -840,23 +837,37 @@ class GoCog(commands.Cog):
     def do_sort_lobbies(self, hosts: List[GoHost], teams: List[GoTeam]) -> Dict[int, List[GoTeam]]:
 
         player_count = sum([t.team_size for t in teams])
-        lobby_count, max_players = self.get_lobby_counts(player_count)
+        lobby_count = self.get_lobby_count(player_count)
         host_dids = {h.host_did for h in hosts}
 
         print(f"{player_count = }")
         print(f"{host_dids = }")
 
+        hosts_on_teams = set()
         team_to_host: Dict[int, int] = {}
         for team in teams:
             for r in team.rosters:
                 if team.id and r.player.discord_id in host_dids:
                     team_to_host[team.id] = r.player.discord_id
+                    hosts_on_teams.add(r.player.discord_id)
+        
+        hosts_not_on_teams = host_dids - hosts_on_teams
+        possible_host_count = len(hosts_not_on_teams) + len(team_to_host)
+
+        print(f'{hosts_on_teams = }')
+        print(f'{hosts_not_on_teams = }')
+        print(f'{possible_host_count = }')
 
         # check team_to_host b/c two hosts on the same team only count
         # as one host
-        if len(team_to_host) < lobby_count:
-            msg = f"Error: Not enough hosts ({len(team_to_host)}) for the number of lobbies needed ({lobby_count})."
-            raise DiscordUserError(msg)
+        if possible_host_count < lobby_count:
+            lobby_count = possible_host_count
+            # msg = f"Error: Not enough hosts ({len(team_to_host)}) for the number of lobbies needed ({lobby_count})."
+            # raise DiscordUserError(msg)
+        
+        max_players = lobby_count * 24
+        print(f'{lobby_count = }')
+        print(f'{max_players = }')
 
         # filter in/out which teams signed up early enough to play
         teams_in = []
@@ -935,6 +946,12 @@ class GoCog(commands.Cog):
         #     assert i in lobby_to_hosts
         #     assert i in lobby_to_teams
 
+        # if the lobby doesn't have a host assigned
+        # then assign one from the list of hosts not on a team
+        for lobby_i in lobby_to_teams:
+            if lobby_i not in lobby_to_host:
+                lobby_to_host[lobby_i] = hosts_not_on_teams.pop()
+
         # change to the map key from lobby index to host id
         host_to_teams = {host_did: lobby_to_teams[lobby_i] for lobby_i, host_did in lobby_to_host.items()}
 
@@ -968,6 +985,8 @@ class GoCog(commands.Cog):
                 lobbies, hosts, teams, signups = self.load_session_data(interaction, session)
 
                 print("")
+                print(" INFO ")
+                print("")
                 for h in hosts:
                     print(f"Host: {h}")
                 print("")
@@ -983,13 +1002,25 @@ class GoCog(commands.Cog):
                     for su in l.signups:
                         lobby_player_count[l.id] += su.team.team_size
 
+                team_ids_assigned = set()
                 msg = ""
                 for i, lobby in enumerate(lobbies):
-                    msg += f"### Lobby {i+1} hosted by <@{lobby.host_did}>\n"
+                    msg += f"## Lobby {i+1} hosted by <@{lobby.host_did}>\n"
                     msg += f"{len(lobby.signups)} teams, {lobby_player_count[l.id]}  players\n"
                     for j, signup in enumerate(sorted(lobby.signups, key=lambda _:  -1*_.team.team_rating)):
+                        team_ids_assigned.add(signup.team.id)
                         igns = [r.player.pf_player.ign for r in signup.team.rosters]
                         msg += f"{chr(ord('A')+j)}: **{escmd(signup.team.team_name)}** *({signup.team.team_rating:,.0f})* -- {', '.join(igns)}\n"
+
+
+                teams_not_assigned = [t for t in teams if t.id not in team_ids_assigned]
+                if teams_not_assigned:
+                    msg += f"## Waitlist:\n"
+                    for j,team in enumerate(teams_not_assigned):
+                        if team.id not in team_ids_assigned:
+                            igns = [r.player.pf_player.ign for r in team.rosters]
+                            msg += f"{chr(ord('A')+j)}: **{escmd(team.team_name)}** *({team.team_rating:,.0f})* -- {', '.join(igns)}\n"
+                            j += 1
 
                 await interaction.followup.send(msg, ephemeral=True)
 
