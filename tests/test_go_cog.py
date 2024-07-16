@@ -577,29 +577,198 @@ def test_sort_lobbies2(gocog_preload, session):
 
 
 @pytest.mark.parametrize(
-    "player_list",
+    "team_list",
     [
-        #rating, team_id, is_host, lobby_id
+        #rating, team_size, host_on_team, lobby_host_id
+
+        # small test, two solos, same lobby
         [
-        (1000, 101, True, 1),
-        (1000, 101, False, 1),
+        (1000, 1, True, 1010),
+        (1000, 1, False, 1010),
         ],
+
+        # 27 players, one host, one team not in the lobby
+        [
+        (1000, 3, True, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, None),
+        ],
+
+        # 33 players, one host, 3 teams not in the lobby
+        [
+        (1000, 3, True, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, 1010),
+        (1000, 3, False, None),
+        (1000, 3, False, None),
+        (1000, 3, False, None),
+        ],        
+
+        # 33 players, 2 hosts
+        [
+        (2000, 3, True, 1010),
+        (1900, 3, True, 1020),
+        (1800, 3, False, 1020),
+        (1700, 3, False, 1010),
+        (1600, 3, False, 1010),
+        (1500, 3, False, 1020),
+        (1400, 3, False, 1020),
+        (1300, 3, False, 1010),
+        (1200, 3, False, 1010),
+        (1100, 3, False, 1020),
+        (1000, 3, False, 1020),
+        ],         
+
+
+        # same as above but jumbled teams below hosts
+        [
+        (2000, 3, True, 1010),
+        (1900, 3, True, 1020),
+        (1100, 3, False, 1020),
+        (1700, 3, False, 1010),
+        (1800, 3, False, 1020),
+        (1000, 3, False, 1020),
+        (1500, 3, False, 1020),
+        (1300, 3, False, 1010),
+        (1600, 3, False, 1010),
+        (1400, 3, False, 1020),
+        (1200, 3, False, 1010),
+        ],             
+
+
+        # 51 players, 2 hosts, 1 team not in the lobby
+        [
+        (2000, 3, True, 1010),
+        (1900, 3, True, 1020),
+        (1800, 3, False, 1020),
+        (1700, 3, False, 1010),
+        (1600, 3, False, 1010),
+        (1500, 3, False, 1020),
+        (1400, 3, False, 1020),
+        (1300, 3, False, 1010),
+        (1200, 3, False, 1010),
+        (1100, 3, False, 1020),
+        (1000, 3, False, 1020),
+        ( 900, 3, False, 1010),
+        ( 800, 3, False, 1010),
+        ( 700, 3, False, 1020),
+        ( 600, 3, False, 1020),
+        ( 500, 3, False, 1010),
+        ( 400, 3, False, None),
+        ],          
+
+        # 51 players, 3 hosts
+        [
+        (2000, 3, True, 1010),
+        (1900, 3, True, 1020),
+        (1800, 3, True, 1030),
+        (1700, 3, False, 1030),
+        (1600, 3, False, 1020),
+        (1500, 3, False, 1010),
+        (1400, 3, False, 1010),
+        (1300, 3, False, 1020),
+        (1200, 3, False, 1030),
+        (1100, 3, False, 1030),
+        (1000, 3, False, 1020),
+        ( 900, 3, False, 1010),
+        ( 800, 3, False, 1010),
+        ( 700, 3, False, 1020),
+        ( 600, 3, False, 1030),
+        ( 500, 3, False, 1030),
+        ( 400, 3, False, 1020),
+        ],        
+
+        
+        # 48 players, 2 hosts, many team sizes
+        [
+        (2000, 3, True, 1010),
+        (1900, 3, True, 1020),
+        (1800, 2, False, 1020),
+        (1700, 3, False, 1010),
+        (1600, 2, False, 1010),
+        (1500, 3, False, 1020),
+        (1400, 2, False, 1020),
+        (1300, 3, False, 1010),
+        (1200, 3, False, 1010),
+        (1100, 2, False, 1020),
+        (1000, 3, False, 1020),
+        ( 900, 3, False, 1010),
+        ( 800, 3, False, 1010),
+        ( 700, 1, False, 1020),
+        ( 600, 2, False, 1020),
+        ( 500, 1, False, 1010), 
+        ( 400, 3, False, 1010),
+        ( 300, 1, False, 1020),
+        ( 200, 2, False, 1020),
+        ( 100, 1, False, 1020),
+        (  50, 2, False, 1020),
+        ],                    
     ],
 )
-def test_sort_lobbies3(gocog, session, player_list):
+def test_sort_lobbies3(gocog, session, team_list):
     godb = gocog.godb
     pfdb = gocog.pfdb
     gocog.godb.set_session_time(session_id=channel1, session_time=date1, session=session)
     
-    for player_id, (rating, team_id, is_host, lobby_id) in enumerate(player_list):
-        pf_player = PfPlayer(id=player_id, ign=f"ign{player_id}", account_created=datetime.now(), last_login=datetime.now())
-        pfdb.create_player(player=pf_player, session=session)
+    teams = []
+    exptected_lobby_host_id = {}
+    for  team_id, (rating, team_size, host_on_team, lobby_host_id) in enumerate(team_list):
         
-        official_rating = GoRatings(pf_player_id=pf_player.id, season=_config.go_season, rating_type="official", go_rating=rating)
-        session.add(official_rating)
-        
-        du = DiscordUser(id=player_id, name=f"du{player_id}")
-        go_player = gocog.do_set_ign(player=du, ign=pf_player.ign, session=session)
-        # go_player = GoPlayer(discord_id=player_id, discord_name=f"du{player_id}", pf_player_id=pf_player.id)
-        
+        # for whatever reason a 0th team is created somewhere
+        team_id += 1
+
+        exptected_lobby_host_id[team_id] = lobby_host_id
+        du_list = []
+
+        for i in range(team_size):
+            player_id = 1000+team_id * 10 + i
+            pf_player = PfPlayer(id=player_id, ign=f"ign{player_id}", \
+                                 account_created=datetime.now(), last_login=datetime.now())
+            pfdb.create_player(player=pf_player, session=session)
+            
+            official_rating = GoRatings(pf_player_id=pf_player.id, season=_config.go_season, rating_type="official", go_rating=rating/team_size)
+            session.add(official_rating)
+            
+            du = DiscordUser(id=player_id, name=f"du{player_id}")
+            du_list.append(du)
+
+            go_player = gocog.do_set_ign(player=du, ign=pf_player.ign, session=session)
+
+            if i==0 and host_on_team:
+                godb.set_host(player_id, channel1, "confirmed", session)
+
+        signup = gocog.do_signup(players=du_list, team_name=f"tname{team_id}", session_id=channel1, session=session)
+        teams.append(signup.team)
+
+    hosts = godb.get_hosts(session_id=channel1, session=session)
+
+    print(f"{exptected_lobby_host_id =}")
+    print(f"{hosts =}")
+    print(f"{teams =}")
+
+    host_to_teams = gocog.do_sort_lobbies(hosts, teams)
+
+    team_ids = set()
+    for host_id, teams in host_to_teams.items():
+        for team in teams:
+            assert team.id not in teams
+            team_ids.add(team.id)
+            assert exptected_lobby_host_id[team.id] == host_id     
+    
+    for team_id, host_id in exptected_lobby_host_id.items():
+        if host_id is None:
+            assert team_id not in team_ids
+        else:
+            assert team_id in team_ids
         
