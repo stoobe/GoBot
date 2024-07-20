@@ -1,5 +1,6 @@
 import logging
 import logging.handlers
+import sys
 
 import _config
 
@@ -14,7 +15,8 @@ def create_logger(logger_name: str = __name__):
     if logger_name not in is_logger_setup:
         # Log messages at INFO level and above
         logger.setLevel(_config.logging_level)
-        console_handler = logging.StreamHandler()
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.flush = sys.stdout.flush
         # formatter = logging.Formatter(
         #     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         # )
