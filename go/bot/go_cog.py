@@ -1022,6 +1022,7 @@ class GoCog(commands.Cog):
                             msg += f"{chr(ord('A')+j)}: **{escmd(team.team_name)}** *({team.team_rating:,.0f})* -- {', '.join(igns)}\n"
                             j += 1
 
+                logger.info(msg)
                 await interaction.followup.send(msg, ephemeral=True)
 
         except DiscordUserError as err:
