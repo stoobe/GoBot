@@ -554,13 +554,13 @@ class GoCog(commands.Cog):
         return msg
 
     #
-    @go_group.command(name="change-signup", description="Change your signup and keep your spot in line")
+    @go_group.command(name="change-signup", description="Change the players in your signup and keep your spot in line")
     async def change_signup(
         self,
         interaction: discord.Interaction,
-        new_player1: discord.Member,
-        new_player2: Optional[discord.Member] = None,
-        new_player3: Optional[discord.Member] = None,
+        player1: discord.Member,
+        player2: Optional[discord.Member] = None,
+        player3: Optional[discord.Member] = None,
         new_team_name: Optional[str] = None,
     ):
         try:
@@ -581,9 +581,9 @@ class GoCog(commands.Cog):
                 # but player (the user running the command) must
                 # be on the team being cancelled
                 player = convert_user(interaction.user)
-                players: List[Optional[DiscordUser]] = [convert_user(new_player1)]
-                players.append(convert_user(new_player2) if new_player2 else None)
-                players.append(convert_user(new_player3) if new_player3 else None)
+                players: List[Optional[DiscordUser]] = [convert_user(player1)]
+                players.append(convert_user(player2) if player2 else None)
+                players.append(convert_user(player3) if player3 else None)
 
                 msg = self.do_change_signup(player, players, new_team_name, interaction.channel_id, session)
                 session.commit()
@@ -1006,7 +1006,7 @@ class GoCog(commands.Cog):
                 msg = ""
                 for i, lobby in enumerate(lobbies):
                     msg += f"## Lobby {i+1} hosted by <@{lobby.host_did}>\n"
-                    msg += f"{len(lobby.signups)} teams, {lobby_player_count[l.id]}  players\n"
+                    msg += f"{len(lobby.signups)} teams, {lobby_player_count[lobby.id]}  players\n"
                     for j, signup in enumerate(sorted(lobby.signups, key=lambda _:  -1*_.team.team_rating)):
                         team_ids_assigned.add(signup.team.id)
                         igns = [r.player.pf_player.ign for r in signup.team.rosters]
@@ -1094,6 +1094,16 @@ class GoCog(commands.Cog):
         hosts = [_ for _ in hosts]
         teams = [_[0] for _ in team_rows]
         signups = [_[1] for _ in team_rows]
+
+        print("\nload_session_data lobbies:")
+        pprint.pp(lobbies)
+        print("\nload_session_data hosts:")
+        pprint.pp(hosts)
+        print("\nload_session_data teams:")
+        pprint.pp(teams)
+        print("\nload_session_data signups:")
+        pprint.pp(signups)
+        print('\n')
 
         return lobbies, hosts, teams, signups
 
