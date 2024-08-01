@@ -1,5 +1,13 @@
 # GoBot
 
+# #################
+
+# set up serverless functions in Vercel
+
+npm i -g vercel@latest
+
+# ################
+
 pipreqs .
 
 pip install -r requirements.txt
