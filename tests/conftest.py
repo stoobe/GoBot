@@ -12,7 +12,7 @@ from discord.ext import commands
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-import _config
+from config import _config 
 from go.bot.go_bot import GoBot
 from go.bot.go_cog import DiscordUser, GoCog
 from go.bot.go_db import GoDB

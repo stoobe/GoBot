@@ -5,7 +5,7 @@ from typing import List
 import pytest
 from sqlmodel import delete
 
-import _config
+from config import _config 
 from go.bot.exceptions import GoDbError, PlayerNotFoundError
 from go.bot.go_db import GoTeamPlayerSignup
 from go.bot.models import GoPlayer, GoRatings, GoTeam

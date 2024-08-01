@@ -2,7 +2,7 @@ import discord
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-import _config
+from config import _config 
 import go.bot.logger
 from go.bot.exceptions import DiscordUserError
 from go.bot.go_cog import DiscordUser, GoCog

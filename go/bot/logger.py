@@ -2,7 +2,7 @@ import logging
 import logging.handlers
 import sys
 
-import _config
+from config import _config 
 
 is_logger_setup = set()
 

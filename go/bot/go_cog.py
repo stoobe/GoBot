@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, delete, select
 import pprint
 
-import _config
+from config import _config 
 from go.bot.exceptions import DiscordUserError, ErrorCode, GoDbError
 from go.bot.go_bot import GoBot
 from go.bot.go_db import GoDB, GoTeamPlayerSignup

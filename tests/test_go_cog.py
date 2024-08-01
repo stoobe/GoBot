@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 from sqlalchemy.exc import InvalidRequestError
 
-import _config
+from config import _config 
 from go.bot.exceptions import DiscordUserError
 from go.bot.go_cog import DiscordUser
 from go.bot.logger import create_logger

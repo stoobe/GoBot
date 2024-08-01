@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 
-import _config
+from config import _config 
 from go.bot.models import GoRatings
 from go.bot.playfab_api import PlayfabApi, as_player_id
 from go.bot.playfab_db import PlayfabDB

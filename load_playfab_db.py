@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, SQLModel, create_engine
 
-import _config
+from config import _config 
 from go.bot.logger import create_logger
 from go.bot.models import PfPlayer
 from go.bot.playfab_api import PlayfabApi

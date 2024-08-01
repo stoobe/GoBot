@@ -3,7 +3,7 @@ import asyncio
 import discord
 from sqlmodel import SQLModel, create_engine
 
-import _config
+from config import _config 
 import go.bot.logger
 from go.bot.go_bot import GoBot
 from go.bot.logger import create_logger

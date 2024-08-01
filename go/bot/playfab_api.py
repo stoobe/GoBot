@@ -7,7 +7,7 @@ import requests
 from attr import define
 from dateutil import parser
 
-import _config
+from config import _config 
 from go.bot.logger import create_logger
 from go.bot.models import PfCareerStats, PfPlayer
 
