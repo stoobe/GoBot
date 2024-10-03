@@ -171,7 +171,7 @@ async def test_change_signup(interaction1, gocog_preload_teams, du2, du3):
     gocog = gocog_preload_teams
     i = interaction1
     gocog.dms_enabled = False
-    await gocog.change_signup.callback(gocog, i, du2, du3, None, "another_name")
+    await gocog.change_signup.callback(gocog, i, du2, du3, None, None, "another_name")
     i.assert_msg_count(f'Cancelled "')
     i.assert_msg_count(f'Signed up "another_name" for')
     i.assert_msg_count(f"\n- Players: ")

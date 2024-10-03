@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pprint
 import random
 from collections import defaultdict, deque
 from datetime import datetime
@@ -11,9 +12,8 @@ from discord import app_commands
 from discord.ext import commands
 from pydantic import BaseModel
 from sqlmodel import Session, delete, select
-import pprint
 
-from config import _config 
+from config import _config
 from go.bot.exceptions import DiscordUserError, ErrorCode, GoDbError
 from go.bot.go_bot import GoBot
 from go.bot.go_db import GoDB, GoTeamPlayerSignup
@@ -361,6 +361,13 @@ class GoCog(commands.Cog):
             else:
                 # make sure all players have ratings
                 player_rating = self.godb.get_official_rating(go_player.pf_player_id, session, season=_config.go_season)
+
+                # use the default rating from the config if it's set
+                if _config.go_rating_default is not None and _config.go_rating_default >= 0:
+                    if player_rating is None:
+                        player_rating = _config.go_rating_default
+
+                # if the player has no rating then alert the user
                 if player_rating is None:
                     msg = f"Player {player.name} does not have a GO Rating. Contact @GO_STOOOBE to help fix this."
                     raise DiscordUserError(msg)
@@ -432,6 +439,7 @@ class GoCog(commands.Cog):
                     session=session,
                     rating_limit=rating_limit,
                     season=_config.go_season,
+                    default_rating=_config.go_rating_default,
                 )
 
             if team is None:
@@ -468,6 +476,7 @@ class GoCog(commands.Cog):
         player1: discord.Member,
         player2: Optional[discord.Member] = None,
         player3: Optional[discord.Member] = None,
+        player4: Optional[discord.Member] = None,
     ):
         self.log_command(interaction)
 
@@ -488,6 +497,7 @@ class GoCog(commands.Cog):
                 players: List[Optional[DiscordUser]] = [convert_user(player1)]
                 players.append(None if not player2 else convert_user(player2))
                 players.append(None if not player3 else convert_user(player3))
+                players.append(None if not player4 else convert_user(player4))
 
                 if team_name:
                     team_name = team_name.strip()
@@ -561,6 +571,7 @@ class GoCog(commands.Cog):
         player1: discord.Member,
         player2: Optional[discord.Member] = None,
         player3: Optional[discord.Member] = None,
+        player4: Optional[discord.Member] = None,
         new_team_name: Optional[str] = None,
     ):
         try:
@@ -584,6 +595,7 @@ class GoCog(commands.Cog):
                 players: List[Optional[DiscordUser]] = [convert_user(player1)]
                 players.append(convert_user(player2) if player2 else None)
                 players.append(convert_user(player3) if player3 else None)
+                players.append(convert_user(player4) if player4 else None)
 
                 msg = self.do_change_signup(player, players, new_team_name, interaction.channel_id, session)
                 session.commit()
@@ -744,7 +756,7 @@ class GoCog(commands.Cog):
                 for s in sessions:
                     # skip the dev channel
                     if s.id == 1127111098290675864:
-                        #unless we're in the dev channel
+                        # unless we're in the dev channel
                         if interaction.channel_id != 1127111098290675864:
                             continue
                     player_count = 0
@@ -754,10 +766,10 @@ class GoCog(commands.Cog):
                     if s.signup_state != "closed":
                         state_str = f" (signups *{s.signup_state}*)"
                     msg += f"<#{s.id}> -- {len(s.signups)} teams  {player_count} players{state_str}\n"
-                
+
                 if not msg:
                     msg = "No sessions found."
-                    
+
                 logger.info(msg)
                 await interaction.response.send_message(msg)
 
@@ -850,13 +862,13 @@ class GoCog(commands.Cog):
                 if team.id and r.player.discord_id in host_dids:
                     team_to_host[team.id] = r.player.discord_id
                     hosts_on_teams.add(r.player.discord_id)
-        
+
         hosts_not_on_teams = host_dids - hosts_on_teams
         possible_host_count = len(hosts_not_on_teams) + len(team_to_host)
 
-        print(f'{hosts_on_teams = }')
-        print(f'{hosts_not_on_teams = }')
-        print(f'{possible_host_count = }')
+        print(f"{hosts_on_teams = }")
+        print(f"{hosts_not_on_teams = }")
+        print(f"{possible_host_count = }")
 
         # check team_to_host b/c two hosts on the same team only count
         # as one host
@@ -864,10 +876,10 @@ class GoCog(commands.Cog):
             lobby_count = possible_host_count
             # msg = f"Error: Not enough hosts ({len(team_to_host)}) for the number of lobbies needed ({lobby_count})."
             # raise DiscordUserError(msg)
-        
+
         max_players = lobby_count * 24
-        print(f'{lobby_count = }')
-        print(f'{max_players = }')
+        print(f"{lobby_count = }")
+        print(f"{max_players = }")
 
         # filter in/out which teams signed up early enough to play
         teams_in = []
@@ -916,7 +928,7 @@ class GoCog(commands.Cog):
                 continue
 
             # if team has a host on the roster
-            if team.id in team_to_host: 
+            if team.id in team_to_host:
                 # if we already have a host for this lobby
                 if i in lobby_to_host:
                     # then look at the next team for this lobby
@@ -1007,16 +1019,15 @@ class GoCog(commands.Cog):
                 for i, lobby in enumerate(lobbies):
                     msg += f"## Lobby {i+1} hosted by <@{lobby.host_did}>\n"
                     msg += f"{len(lobby.signups)} teams, {lobby_player_count[lobby.id]}  players\n"
-                    for j, signup in enumerate(sorted(lobby.signups, key=lambda _:  -1*_.team.team_rating)):
+                    for j, signup in enumerate(sorted(lobby.signups, key=lambda _: -1 * _.team.team_rating)):
                         team_ids_assigned.add(signup.team.id)
                         igns = [r.player.pf_player.ign for r in signup.team.rosters]
                         msg += f"{chr(ord('A')+j)}: **{escmd(signup.team.team_name)}** *({signup.team.team_rating:,.0f})* -- {', '.join(igns)}\n"
 
-
                 teams_not_assigned = [t for t in teams if t.id not in team_ids_assigned]
                 if teams_not_assigned:
                     msg += f"## Waitlist:\n"
-                    for j,team in enumerate(teams_not_assigned):
+                    for j, team in enumerate(teams_not_assigned):
                         if team.id not in team_ids_assigned:
                             igns = [r.player.pf_player.ign for r in team.rosters]
                             msg += f"{chr(ord('A')+j)}: **{escmd(team.team_name)}** *({team.team_rating:,.0f})* -- {', '.join(igns)}\n"
@@ -1104,7 +1115,7 @@ class GoCog(commands.Cog):
         pprint.pp(teams)
         print("\nload_session_data signups:")
         pprint.pp(signups)
-        print('\n')
+        print("\n")
 
         return lobbies, hosts, teams, signups
 

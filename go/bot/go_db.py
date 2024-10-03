@@ -85,6 +85,7 @@ class GoDB:
         session: Session,
         rating_limit: Optional[float],
         season: str,
+        default_rating: Optional[float] = None,
     ) -> GoTeam:
         logger.info(f"Creating GoTeam {team_name = } in DB")
         ids = {p.discord_id for p in go_players}
@@ -101,6 +102,8 @@ class GoDB:
         for go_p in go_players:
             player_rating = self.get_official_rating(go_p.pf_player_id, session, season)
             if player_rating is None:
+                player_rating = default_rating
+            if player_rating is None:
                 team_rating = None
                 break
             team_rating += player_rating
@@ -109,7 +112,10 @@ class GoDB:
             raise GoDbError(f"Cannot create team: One or more players do not have an official rating")
 
         if rating_limit is not None and team_rating > rating_limit:
-            raise GoDbError(f"Team rating {team_rating:,.0f} exceeds the cap of {rating_limit:,.0f}")
+            if rating_limit < 0:
+                raise GoDbError(f"Squads of size {team_size} are not allowed this season")
+            else:
+                raise GoDbError(f"Team rating {team_rating:,.0f} exceeds the cap of {rating_limit:,.0f}")
 
         team = GoTeam(team_name=team_name, team_size=team_size, team_rating=team_rating)
         session.add(team)

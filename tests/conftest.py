@@ -12,7 +12,7 @@ from discord.ext import commands
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-from config import _config 
+from config import _config
 from go.bot.go_bot import GoBot
 from go.bot.go_cog import DiscordUser, GoCog
 from go.bot.go_db import GoDB
@@ -330,6 +330,9 @@ class TestBotStub(commands.Bot):
 
 @pytest.fixture
 def gocog(godb, pfdb, engine, scope="function"):
+    _config.go_rating_limits = {1: 1000, 2: 2000, 3: 3000, 4: 4000}
+    _config.go_rating_default = None
+
     bot = TestBotStub(engine=engine)
     bot.godb = godb
     bot.pfdb = pfdb

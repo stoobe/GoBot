@@ -10,11 +10,12 @@ try:
     with open("_config.toml", "rb") as f:
         cfg = tomli.load(f)
 except Exception as e:
+    print(f"Exception caught in config.py: {e}")
     with open("../_config.toml", "rb") as f:
         cfg = tomli.load(f)
 
 # # Print the parsed data
-# print(f'cfg = ')
+# print(f"cfg = ")
 # pprint.pp(cfg)
 
 
@@ -35,8 +36,15 @@ _config = ConfigAccess(cfg)
 _config.godb_url = f"mysql{_config.godb_driver}://{_config.godb_user}:{_config.godb_pw}@{_config.godb_host}:{_config.godb_port}/{_config.godb_name}"
 
 
+# convert list of pairs into a dict
+_config.go_rating_limits = dict(_config.go_rating_limits)
 for i in range(4):
     if i not in _config.go_rating_limits:
         _config.go_rating_limits[i] = None
 
 # print("url ",_config.godb_url)
+
+
+# # Print the parsed data
+# print(f"cfg = ")
+# pprint.pp(_config.__dict__)
